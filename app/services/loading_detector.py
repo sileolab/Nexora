@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import re
+import unicodedata
 from typing import Optional
 from bs4 import BeautifulSoup
 
@@ -16,7 +17,9 @@ logger = logging.getLogger(__name__)
 
 # Regular expressions for loading indicator phrases in Persian and English
 LOADING_PATTERNS_PERSIAN = [
-    r"در\s*حال\s*(?:بارگذاری|بارگیری|دریافت|آماده‌?سازی|فراخوانی|لود|پردازش|اتصال)",
+    r"در\s*حال\s*(?:انتقال|هدایت|ارسال|بارگذاری|بارگیری|دریافت|آماده‌?سازی|فراخوانی|لود|پردازش|اتصال)",
+    r"در\s*حال\s*انتقال\s*به\s*(?:سایت|وب‌?سایت|صفحه)\s*(?:مورد\s*نظر)?",
+    r"انتقال\s*به\s*(?:سایت|وب‌?سایت|صفحه)",
     r"لطفاً?\s*(?:کمی\s*)?صبر\s*کنید",
     r"کمی\s*صبر\s*کنید",
     r"چند\s*لحظه\s*صبر\s*کنید",
@@ -28,6 +31,9 @@ LOADING_PATTERNS_PERSIAN = [
 ]
 
 LOADING_PATTERNS_ENGLISH = [
+    r"\btransferring\s+to\s+(?:the\s+)?website\b",
+    r"\bredirecting\s+to\s+(?:the\s+)?website\b",
+    r"\bchecking\s+your\s+browser\b",
     r"\bloading\b(?:\s+(?:content|data|page|application|app|please\s+wait))?",
     r"\bplease\s+wait\b",
     r"\bjust\s+a\s+moment\b",
@@ -80,8 +86,8 @@ def is_loading_text(text: Optional[str], title: Optional[str] = None) -> bool:
     if not text and not title:
         return False
 
-    clean_text = (text or "").strip()
-    clean_title = (title or "").strip()
+    clean_text = unicodedata.normalize("NFKC", (text or "").strip())
+    clean_title = unicodedata.normalize("NFKC", (title or "").strip())
 
     # 1. Check title
     if clean_title:
@@ -156,12 +162,57 @@ def has_loading_dom(html: str) -> bool:
     return False
 
 
+def is_interstitial_or_challenge(
+    html: Optional[str] = None,
+    text: Optional[str] = None,
+) -> bool:
+    """Detect CDN waiting/challenge screens (e.g. ArvanCloud, Cloudflare, DerakCloud).
+
+    Identifies interstitial pages stating 'در حال انتقال به سایت مورد نظر هستید...'
+    or 'Transferring to the website...', as well as DDoS cookie reload challenges.
+    """
+    if html:
+        h_lower = html[:80000].lower()
+        if any(marker in h_lower for marker in (
+            "error-section--waiting",
+            "error-section__subtitle--waiting",
+            "__arcsjs",
+            "__arcsjsc",
+            "cf-browser-verification",
+            "challenge-platform",
+            "static-pages-2.6.0.css",
+        )):
+            return True
+
+        if ("location.reload()" in html or "location.replace(" in html) and ("cookie" in html or "settimeout" in h_lower):
+            if len(html) < 20000:
+                return True
+
+    if text:
+        norm_t = unicodedata.normalize("NFKC", text)
+        if any(p in norm_t for p in (
+            "در حال انتقال به سایت مورد نظر هستید",
+            "در حال انتقال به سایت",
+            "در حال انتقال به وب‌سایت",
+            "در حال انتقال به صفحه",
+            "Transferring to the website",
+            "Redirecting to the website",
+            "Checking your browser",
+        )):
+            return True
+
+    return False
+
+
 def is_loading_screen(
     html: Optional[str] = None,
     text: Optional[str] = None,
     title: Optional[str] = None,
 ) -> bool:
-    """Comprehensive check whether a page or extraction result is a loading screen."""
+    """Comprehensive check whether a page or extraction result is a loading or interstitial screen."""
+    if is_interstitial_or_challenge(html=html, text=text):
+        return True
+
     if text and is_loading_text(text, title=title):
         return True
 

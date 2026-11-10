@@ -139,6 +139,10 @@ class JobStatus(BaseModel):
         le=100.0,
         description="Execution progress percentage (0.0 to 100.0).",
     )
+    metrics: Optional[dict[str, Any]] = Field(
+        default=None,
+        description="Detailed observability, anti-bot, and request metrics for this job.",
+    )
 
     @model_validator(mode="after")
     def compute_progress_if_unset(self) -> JobStatus:
@@ -229,15 +233,15 @@ class ApiResponse(BaseModel):
 
     success: bool = Field(description="Whether the requested API operation succeeded.")
     message: str = Field(default="", description="Human-readable status or error message.")
-    data: Optional[dict[str, Any]] = Field(
+    data: Optional[Any] = Field(
         default=None,
-        description="Optional payload data dictionary.",
+        description="Optional payload data (dictionary, list, or primitive).",
     )
 
     @classmethod
     def ok(
         cls,
-        data: Optional[dict[str, Any]] = None,
+        data: Optional[Any] = None,
         message: str = "Operation completed successfully",
     ) -> ApiResponse:
         """Convenience factory method for successful responses."""
@@ -247,7 +251,7 @@ class ApiResponse(BaseModel):
     def error(
         cls,
         message: str,
-        data: Optional[dict[str, Any]] = None,
+        data: Optional[Any] = None,
     ) -> ApiResponse:
         """Convenience factory method for error responses."""
         return cls(success=False, message=message, data=data)

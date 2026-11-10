@@ -1,451 +1,524 @@
-# 🕷️ Crawlbot Studio
-### Enterprise Multi-Engine Web Crawler, Content Extractor & RAG Ingestion Pipeline
+<div align="center">
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![Pydantic](https://img.shields.io/badge/Pydantic-v2-E92063?style=flat-square&logo=pydantic&logoColor=white)](https://docs.pydantic.dev/)
-[![Engine Playwright](https://img.shields.io/badge/Engine%20D-Playwright%20Chromium-45BA4B?style=flat-square&logo=playwright&logoColor=white)](https://playwright.dev/python/)
-[![Engine Crawl4AI](https://img.shields.io/badge/Engine%20C-Crawl4AI-FF5722?style=flat-square)](https://crawl4ai.com/)
-[![Engine Trafilatura](https://img.shields.io/badge/Engine%20A-Trafilatura-2196F3?style=flat-square)](https://trafilatura.readthedocs.io/)
-[![Engine BeautifulSoup](https://img.shields.io/badge/Engine%20B-BeautifulSoup4-4CAF50?style=flat-square)](https://www.crummy.com/software/BeautifulSoup/)
-[![Tests](https://img.shields.io/badge/Tests-234%20Passing-brightgreen?style=flat-square&logo=pytest&logoColor=white)](tests/)
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+<img src="docs/images/nexora_banner.svg" alt="Nexora Studio Banner" width="100%"/>
 
-**Crawlbot Studio** is an enterprise-grade, asynchronous web crawling, content extraction, and data preparation platform engineered specifically for **Retrieval-Augmented Generation (RAG)**, LLM knowledge bases, and semantic search systems. 
+<br/>
 
-It unites **four independent extraction engines** (Trafilatura, BeautifulSoup, Crawl4AI, and Native Playwright Chromium), an autonomous **Page Type Classifier**, an intelligent **Anti-Loader & Dynamic Hydration Bypass Engine**, a **Persian/Arabic Unicode Normalizer**, a **0–100 Content Quality Assessor**, and an **Offline Chunking & 1536-D Vector Embedding Pipeline** alongside a dedicated **File Processing Studio**.
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Playwright](https://img.shields.io/badge/Engine-Playwright%20Chromium-45BA4B?style=for-the-badge&logo=playwright&logoColor=white)](https://playwright.dev/python/)
+[![Crawl4AI](https://img.shields.io/badge/Engine-Crawl4AI-FF5722?style=for-the-badge)](https://crawl4ai.com/)
+[![Tests Passing](https://img.shields.io/badge/Tests-474%20Passing%20(100%25)-brightgreen?style=for-the-badge&logo=pytest&logoColor=white)](tests/)
+[![API Docs](https://img.shields.io/badge/API%20Portal-Interactive%20%2Fdocs-06b6d4?style=for-the-badge&logo=openapi-initiative&logoColor=white)](http://localhost:8000/docs)
+[![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 
-Featuring a **minimalist, modern rounded SaaS dark interface** and a high-performance RESTful API, Crawlbot bridges the gap between heterogeneous web sources / raw datasets and production vector stores (**ChromaDB, Pinecone, Qdrant, Milvus, pgvector**).
+<br/>
+
+**Nexora** is an enterprise-grade, asynchronous web crawling, content extraction, and data intelligence platform engineered specifically for **Retrieval-Augmented Generation (RAG)**, LLM knowledge grounding, and production semantic search systems.
+
+[Live Studio Tour](#-live-studio-tour--visual-showcase) •
+[System Pipeline](#-animated-pipeline-architecture) •
+[Interactive Terminal](#-animated-developer-cli-experience) •
+[4-Engine Comparison](#-4-engine-extraction-matrix) •
+[IR Evaluation](#-information-retrieval-ir-evaluation-studio) •
+[Interactive API Docs](#-bespoke-interactive-api-documentation-portal) •
+[Python SDK & CLI](#-python-sdk--developer-cli) •
+[Quickstart](#-quickstart-guide) •
+[Production Deployment](#-production-deployment-docker--systemd)
+
+</div>
 
 ---
 
-## 🌟 Architecture & Data Flow
+## ⚡ Animated Developer CLI Experience
+
+Experience autonomous multi-depth web discovery, Playwright headless extraction, Persian/multilingual semantic chunking, and IR benchmark evaluation executed directly from the terminal:
+
+<div align="center">
+  <img src="docs/images/nexora_terminal_animated.svg" alt="Nexora Terminal Experience" width="100%"/>
+</div>
+
+---
+
+## 🔄 Animated Pipeline Architecture
+
+Nexora transforms messy, unstructured, dynamic web pages and multi-format documents into clean, deduplicated, verified semantic chunks ready for production vector databases:
+
+<div align="center">
+  <img src="docs/images/nexora_pipeline_animated.svg" alt="Nexora Data Pipeline" width="100%"/>
+</div>
+
+---
+
+## 📸 Live Studio Tour & Visual Showcase
+
+Nexora features a modern, dark-themed glassmorphic Studio interface (`#0b0f17`) built with responsive desktop controls, real-time job telemetry, and instant visual inspection.
+
+### 1. URL Discovery Studio
+Autonomous recursive web crawler with XML sitemap auto-detection, robots.txt parser, regex pattern white/blacklisting, query-string retention, and live page metrics.
+<div align="center">
+  <img src="docs/images/dashboard_desktop_en.png" alt="URL Discovery Studio" width="100%"/>
+</div>
+
+<br/>
+
+### 2. 4-Engine Content Extraction Studio
+Autonomous page classification (Article, Docs, SPA, Product, FAQ) with an intelligent fallback cascade: Smart Auto, Playwright Chromium headless rendering, Crawl4AI, and Trafilatura.
+<div align="center">
+  <img src="docs/images/tab_extract.png" alt="Content Extraction Studio" width="100%"/>
+</div>
+
+<br/>
+
+### 3. AI & RAG Structuring Studio
+Persian & multilingual unicode normalization, semantic sentence-boundary chunking, automated markdown repair, multi-provider embedding generation (OpenAI, Gemini, Local), and hybrid dense search.
+<div align="center">
+  <img src="docs/images/tab_ai.png" alt="AI and RAG Structuring Studio" width="100%"/>
+</div>
+
+<br/>
+
+### 4. Information Retrieval (IR) Evaluation Studio
+Scientific retrieval benchmark laboratory computing Recall@K, MRR, and nDCG@K. Compare 3 algorithmic methods (Dense vs BM25 vs Hybrid) and inspect candidate exclusions with step-by-step pipeline tracing.
+<div align="center">
+  <img src="docs/images/tab_eval.png" alt="Information Retrieval Evaluation Studio" width="100%"/>
+</div>
+
+<br/>
+
+### 5. Multi-Format File Processing Studio
+Ingest PDF, DOCX, TXT, MD, JSON, and CSV documents directly. Automatic text extraction, structural normalization, semantic chunking, and instant vector store indexing.
+<div align="center">
+  <img src="docs/images/tab_files.png" alt="File Processing Studio" width="100%"/>
+</div>
+
+<br/>
+
+### 6. AI Settings & Bring-Your-Own-Key (BYOK) Management
+Configure your AI providers (OpenAI, Google Gemini, Ollama, DeepSeek) directly from the Studio. Secure secret encryption, custom Base URLs, and model selection.
+<div align="center">
+  <img src="docs/images/modal_ai_settings.png" alt="AI Provider Settings and BYOK" width="80%"/>
+</div>
+
+---
+
+## 📖 Bespoke Interactive API Documentation Portal
+
+Rather than relying on generic Swagger UI, Nexora includes a custom-designed, dark-themed developer documentation portal hosted at `/docs` (and aliased at `/api-docs`):
+
+<div align="center">
+  <img src="docs/images/api_docs_hero.png" alt="Interactive API Portal Hero" width="100%"/>
+</div>
+
+<br/>
+
+<div align="center">
+  <img src="docs/images/api_docs_endpoint_view.png" alt="Interactive API Endpoint View" width="100%"/>
+</div>
+
+### Key API Portal Highlights:
+- **Complete Endpoint Coverage**: All **76 platform endpoints** categorized across 12 distinct functional modules.
+- **Instant Search (`Ctrl + K`)**: Real-time fuzzy filtering across paths, summaries, HTTP methods, and parameter schemas.
+- **Method Filter Pills**: Instant one-click filtering by `ALL`, `GET`, `POST`, `PUT`, `DELETE`.
+- **4-Language Code Generator**: Copy-paste ready snippets in **cURL**, **Python (requests)**, **Python (Nexora SDK)**, and **JavaScript (fetch)**.
+- **In-Browser "Try It Live" Console**: Test endpoints interactively against your local server with configurable headers, payloads, live status badges, latency timers, and formatted JSON output.
+
+---
+
+## ⚖️ 4-Engine Extraction Matrix
+
+Nexora integrates 4 autonomous extraction engines to achieve maximum recall and throughput across arbitrary website architectures:
+
+| Engine | Primary Technology | Best Used For | JS Execution | Throughput | Memory Overhead | Fallback Rank |
+| :--- | :--- | :--- | :---: | :---: | :---: | :---: |
+| **🚀 Smart Auto** | Adaptive Cascade Router | General web crawling; detects page type and routes dynamically | Adaptive | High | Moderate | Default (Auto) |
+| **🎭 Playwright Chromium** | Headless Browser Automation | Single Page Apps (React, Vue, Next.js), complex dynamic hydration | Full Headless | Moderate | Higher | Priority 1 (JS) |
+| **🕷️ Crawl4AI** | Async Headless Pipeline | Structured article scraping, content blocks, markdown extraction | Headless | High | Moderate | Priority 2 (DOM) |
+| **⚡ Trafilatura** | Fast HTTP DOM Stripper | High-speed static blogs, news articles, academic papers | None (Fast HTTP) | Ultra-High | Minimal | Priority 3 (Static) |
+
+---
+
+## 🔬 Information Retrieval (IR) Evaluation Studio
+
+Nexora treats RAG ingestion not as an afterthought, but as an empirical science. The built-in IR Evaluation Studio allows teams to objectively benchmark search performance before deploying to production:
 
 ```
-                                  ┌───────────────────────────────┐
-                                  │   Target Web / Uploaded File  │
-                                  └──────────────┬────────────────┘
-                                                 │ HTTPX Async / Playwright / Multipart
-                                                 ▼
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│ DISCOVERY, FILE INGESTION & SECURITY LAYER                                      │
-│                                                                                 │
-│   ┌─────────────────────┐      ┌──────────────────────┐   ┌─────────────────┐   │
-│   │ URL Normalizer &    │ ───► │ Robots & Sitemap     │──►│ Hop-by-Hop SSRF │   │
-│   │ Deduplication SHA   │      │ Recursive Discovery  │   │ DNS Rebind Guard│   │
-│   ├─────────────────────┤      └──────────────────────┘   └─────────────────┘   │
-│   │ File Ingestion      │ ───► JSON / JSONL / Markdown Direct Ingestion         │
-│   │ (/api/files)        │                                                       │
-│   └─────────────────────┘                                                       │
-└────────────────────────────────────────┼────────────────────────────────────────┘
-                                         │ Validated URLs / Raw Content
-                                         ▼
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│ AUTONOMOUS EXTRACTION & HYDRATION LAYER                                         │
-│                                                                                 │
-│   ┌─────────────────────────────────────────────────────────────────────────┐   │
-│   │ Page Classifier: article | docs | product | faq | spa | policy | about  │   │
-│   └────────────────────────────────────┬────────────────────────────────────┘   │
-│                                        │ Selection & Controlled Fallback        │
-│                    ┌───────────────────┼───────────────────┬────────────────┐   │
-│                    ▼                   ▼                   ▼                ▼   │
-│           ┌─────────────────┐ ┌─────────────────┐ ┌─────────────┐ ┌─────────────┐ │
-│           │ Engine A        │ │ Engine B        │ │ Engine C    │ │ Engine D    │ │
-│           │ Trafilatura     │ │ BeautifulSoup4  │ │ Crawl4AI    │ │ Playwright  │ │
-│           │ • Articles/Text │ │ • Tables & DOM  │ │ • Browser   │ │ • Chromium  │ │
-│           │ • High Recall   │ │ • JSON-LD & OG  │ │ • Markdown  │ │ • Hydration │ │
-│           │ • Formatting    │ │ • Docs Nav/Aside│ │ • Scraping  │ │ • AntiLoader│ │
-│           └────────┬────────┘ └────────┬────────┘ └──────┬──────┘ └──────┬──────┘ │
-│                    └───────────────────┼─────────────────┴───────────────┘        │
-│                                        ▼                                          │
-│   ┌─────────────────────────────────────────────────────────────────────────┐     │
-│   │ Loading Screen & Skeleton Detector: Auto-Scroll, Settlement & Bypass    │     │
-│   ├─────────────────────────────────────────────────────────────────────────┤     │
-│   │ Persian Normalizer: Unicode harmonization, ZWNJ, digit/punct correction │     │
-│   ├─────────────────────────────────────────────────────────────────────────┤     │
-│   │ Quality Checker (0-100 Score): Text Density | Structure | Deduplication │     │
-│   └────────────────────────────────────┬────────────────────────────────────┘     │
-└────────────────────────────────────────┼──────────────────────────────────────────┘
-                                         │ Unified ExtractedDocument
-                                         ▼
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│ AI & RAG VECTOR PIPELINE                                                        │
-│                                                                                 │
-│   ┌────────────────────────┐   ┌────────────────────────┐   ┌─────────────────┐ │
-│   │ DocumentChunker        │   │ RAGEnhancer (LLM)      │   │ EmbeddingService│ │
-│   │ • Semantic Heading     │   │ • Verified Q&A Pairs   │   │ • 1536D Vectors │ │
-│   │ • Paragraph / Sentence │   │ • Citation Evidence    │   │ • High-Batching │ │
-│   │ • Fixed Window+Overlap │   │ • Topic & Summary JSON │   │ • Custom BaseURL│ │
-│   └───────────┬────────────┘   └───────────┬────────────┘   └────────┬────────┘ │
-└───────────────┼────────────────────────────┼─────────────────────────┼──────────┘
-                │                            │                         │
-                ▼                            ▼                         ▼
-        ┌───────────────┐            ┌───────────────┐         ┌────────────────┐
-        │  Chunks JSONL │            │ Verified RAG  │         │ Vectors JSONL  │
-        │  & Chunks JSON│            │ JSON Schema   │         │ (Vector Ready) │
-        └───────────────┘            └───────────────┘         └────────────────┘
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                      MATHEMATICAL RETRIEVAL BENCHMARKS                        │
+├───────────────────────────────────────────────────────────────────────────────┤
+│                                                                               │
+│  1. Recall@K:                                                                 │
+│     Recall@K = | Relevant Chunks in Top K | / | Total Relevant Ground Truth | │
+│                                                                               │
+│  2. Mean Reciprocal Rank (MRR):                                               │
+│     MRR = (1 / |Q|) * ∑ ( 1 / rank_i )                                        │
+│                                                                               │
+│  3. Discounted Cumulative Gain (nDCG@K):                                      │
+│     DCG@K = ∑ ( (2^(rel_i) - 1) / log2(i + 1) )                               │
+│     nDCG@K = DCG@K / IDCG@K                                                   │
+│                                                                               │
+└───────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Algorithmic Comparison: 3 Retrieval Modes
+1. **Dense Vector Search**: Cosine similarity against 1536-dimensional embeddings (OpenAI `text-embedding-3-small`, Gemini, or Local).
+2. **BM25 Lexical Search**: Full-text inverted index with Okapi BM25 scoring for exact keyword and entity recall.
+3. **Hybrid RRF Fusion**: Reciprocal Rank Fusion ($RRF\_Score = \sum \frac{1}{60 + rank}$) combining dense semantic understanding with lexical precision.
+
+### Pipeline Exclusion Diagnostics
+Inspect why specific documents failed to rank with the Step-by-Step Retrieval Debugger:
+- **Step 1: Query Analysis & Tokenization**: Linguistic stem filtering.
+- **Step 2: Metadata Filtering**: Workspace, domain, and category restriction.
+- **Step 3: Score Cutoff**: Rejection below minimum similarity threshold.
+- **Step 4: Context Expansion**: Neighbor window chunk attachment.
+
+---
+
+## 🏛️ Comprehensive Architecture Diagram
+
+```mermaid
+flowchart TD
+    subgraph DISCOVERY ["1. Discovery & Ingestion Layer"]
+        U["Target URLs / Root Domain"] --> R["Robots.txt Parser & Compliance"]
+        U --> S["Sitemap XML Parser (Recursive)"]
+        R & S --> D["Multi-Algorithm Crawler (BFS / DFS / Regex Filter)"]
+        F["Document Files (PDF, DOCX, TXT, CSV)"] --> FP["File Processor & Converter"]
+    end
+
+    subgraph EXTRACTION ["2. Autonomous Multi-Engine Extraction Layer"]
+        D --> PC["Page Classifier (Article / Docs / SPA / Product)"]
+        PC --> ENG{"Engine Selector"}
+        ENG -->|Static Text| E1["Trafilatura Engine"]
+        ENG -->|Dynamic SPA| E2["Playwright Chromium Headless"]
+        ENG -->|Browser Crawl| E3["Crawl4AI Engine"]
+        ENG -->|Auto Mode| E4["Smart Auto Fallback Cascade"]
+        E1 & E2 & E3 & E4 --> AB["Anti-Loader & Hydration Bypass Engine"]
+        AB --> VP["Visible-Only DOM Pruning Filter"]
+    end
+
+    subgraph RAG_CLEANING ["3. Semantic Processing & Repair Layer"]
+        VP & FP --> NORM["Persian / Arabic & Unicode Normalizer"]
+        NORM --> CHK["Semantic Sentence Boundary Chunker (Size / Overlap)"]
+        CHK --> REP["Automated Markdown Repair Service (Unclosed tags/tables)"]
+        REP --> EMB["Embedding Service (OpenAI, Gemini, Local)"]
+    end
+
+    subgraph HYBRID_STORAGE ["4. Storage, Indexing & Evaluation Studio"]
+        EMB --> VS[("In-Memory Hybrid Vector Store (Dense + BM25)")]
+        VS --> INC["Differential Incremental Sync (SHA-256 Hashing)"]
+        VS --> EVAL["IR Retrieval Benchmark Suite (Recall@K, MRR, nDCG)"]
+        EVAL --> TRACE["Candidate Exclusion Tracing Debugger"]
+    end
+
+    subgraph PLATFORM_API ["5. API, Security & Multi-Tenancy Layer"]
+        VS & EVAL --> REST["FastAPI Platform REST API (76 Endpoints)"]
+        REST --> SEC["Multi-Tenant Isolation & BYOK Secrets Manager"]
+        SEC --> METER["Usage Metering & Token Quota Enforcer"]
+        REST --> UI["Nexora Studio Glassmorphic Dark UI"]
+        REST --> DOCS["Interactive API Portal (/docs & /api-docs)"]
+        REST --> SDK["Nexora Python SDK (NexoraClient)"]
+        REST --> CLI["Nexora Developer CLI (nexora)"]
+    end
 ```
 
 ---
 
-## 🚀 Key Highlights & Capabilities
+## 💻 Python SDK & Developer CLI
 
-### 1. Four Independent Extraction Engines
-- **Engine A — Trafilatura:** Optimized for long-form textual bodies, news publications, blogs, and documentation pages with clean Markdown output and metadata extraction.
-- **Engine B — BeautifulSoup:** Direct DOM traversal with selective node cleaning. Converts tables into clean Markdown, extracts `JSON-LD` microdata and OpenGraph tags, and preserves `<nav>` / `<aside>` code structures in developer docs without blind stripping.
-- **Engine C — Crawl4AI:** Browser-assisted extraction designed for LLM readiness, supporting dynamic JavaScript rendering and modern layout parsing.
-- **Engine D — Native Playwright Chromium:** Full headless browser automation for JavaScript-heavy SPAs (React, Vue, Svelte, Angular, Next.js). Features custom hydration waits, smooth auto-scrolling to trigger lazy loading, and an isolated **Windows ProactorEventLoop** architecture that guarantees seamless subprocess execution under Windows ASGI servers.
+### Official Python SDK (`NexoraClient`)
 
-### 2. Intelligent Loading Screen & Skeleton Bypass
-- Autonomous detection of dynamic SPA loading screens (e.g. animated preloader spinners, splash screens, skeleton overlays).
-- Automatic JavaScript injection to dismiss blocking loader elements (`#preloader`, `.loader`, `[data-loading]`, `animate-spin`).
-- Adaptive network settlement and auto-retry to ensure complete page hydration before DOM extraction.
+Install the client library:
 
-### 3. Persian & Multilingual Normalization Engine
-- **Unicode Normalization:** Standardizes Arabic/Persian letter variants (ی/ي, ک/ك, ۀ/هٔ).
-- **Zero-Width Non-Joiner (ZWNJ / نیم‌فاصله):** Intelligent placement for affixes (`می‌`, `نمی‌`, `تر`, `ترین`, `ها`).
-- **Digits & Punctuation:** Canonical conversion of Arabic/English numerals to Persian digits and quotation marks/question marks harmonization.
-- **Diacritics & Noise Cleaning:** Cleans Kashida (elongation), excessive spaces, and pronunciation marks while preserving code blocks and URLs.
+```bash
+pip install nexora
+```
 
-### 4. Direct File Processing Studio (`/api/files`)
-- Upload raw `.json`, `.jsonl`, or `.md` files directly from the UI or API.
-- Modular execution options:
-  - **AI Optimization & Enrichment:** Extracts topics, summaries, and synthetic Q&A pairs with citations.
-  - **Advanced Chunking:** Splits uploaded files into semantic or fixed-size chunks.
-  - **Dense Vector Embedding:** Directly generates 1536-D vector embeddings for downstream vector storage.
-- Real-time inline previews and one-click JSON/JSONL downloads.
+Execute an end-to-end extraction, semantic chunking, and hybrid search workflow in Python:
 
-### 5. Multi-Strategy Offline Chunking (Zero External API Dependency)
-- **`semantic_heading`:** Preserves document hierarchy ($H_1 \to H_2 \to H_3$) and prepends parent heading trails to each chunk.
-- **`paragraph`:** Merges paragraphs up to the configured token budget without splitting coherent paragraphs.
-- **`sentence`:** Regex-based multilingual sentence boundary detection with configurable token overlap.
-- **`fixed_size`:** Sliding window character/word chunking with customizable overlap.
+```python
+from nexora import NexoraClient
 
-### 6. Intelligent Engine Execution Modes
-- **`auto` (Smart Routing & Fallback):** Classifies the page first, executes the best engine, assesses quality, and automatically cascades through fallback engines if the quality score is below the configured threshold (`min_quality_score`, default: 40).
-- **`playwright`:** Explicitly runs the native Playwright Chromium engine.
-- **`trafilatura`:** Explicitly runs Trafilatura.
-- **`beautifulsoup`:** Explicitly runs BeautifulSoup.
-- **`crawl4ai`:** Explicitly runs Crawl4AI.
-- **`compare` (Benchmark Mode):** Concurrently runs all engines on the same page and produces a side-by-side performance matrix (score, word count, character count, latency).
+# 1. Initialize client with base URL and API key
+client = NexoraClient(
+    base_url="http://localhost:8000",
+    api_key="your_workspace_or_admin_key"
+)
 
-### 7. Comprehensive Quality Assessment (0–100 Score)
-- **Text Density Index:** Ratio of meaningful text against raw markup size.
-- **Heading Structure:** Validates semantic hierarchy ($H_1 \to H_2 \to H_3$).
-- **Paragraph & Flow Analysis:** Evaluates paragraph count and average length.
-- **Lexical Diversity:** Measures vocabulary uniqueness and penalizes keyword stuffing.
-- **Short-Text Penalty:** Applies steep penalties for fragments with $<50$ words.
-- **Deduplication:** SHA-256 cryptographic fingerprinting across crawl sessions.
+# 2. Check platform readiness
+health = client.health()
+print(f"Status: {health['status']} | Active Jobs: {health['active_jobs_count']}")
 
-### 8. Verified RAG Enhancement & Synthetic Q&A
-- **Hallucination Prevention (Evidence Citation):** Every synthetic Q&A pair generated by the LLM retains verbatim evidence quoted directly from the source text.
-- **Automated Consistency Check:** Automatically verifies numbers and named entities against source paragraphs.
-- **Custom Base URL Support:** Fully compatible with OpenAI, OpenRouter, DeepSeek, Ollama, vLLM, and LocalAI via `CRAWLBOT_OPENAI_BASE_URL`.
+# 3. Trigger autonomous website discovery
+discovery_job = client.discovery.start(
+    root_url="https://docs.example.com",
+    max_depth=3,
+    max_pages=50,
+    keep_query_params=False
+)
+print(f"Started Discovery Job: {discovery_job.id}")
 
----
+# 4. Extract structured markdown using Playwright Chromium
+extract_job = client.extraction.start(
+    urls=["https://docs.example.com/guide"],
+    engine="playwright",
+    crawl_mode="single"
+)
 
-## 📁 Repository Structure
+# 5. Semantic sentence-boundary chunking
+chunks = client.rag.chunk_text(
+    text="# Enterprise RAG Ingestion\n\nNexora delivers high-precision grounding...",
+    chunk_size=500,
+    chunk_overlap=50
+)
+for chunk in chunks:
+    print(f"Chunk {chunk.id}: {chunk.token_count} tokens")
 
-```text
-Crawlbot/
-├── run.py                          # Dedicated server launcher (enforces Proactor loop on Windows)
-├── app/
-│   ├── main.py                     # FastAPI application factory & route mounts
-│   ├── api/                        # REST API routing endpoints
-│   │   ├── routes_discovery.py     # Web discovery & link crawling
-│   │   ├── routes_extraction.py    # Multi-engine extraction & compare APIs
-│   │   ├── routes_files.py         # File Processing Studio (JSON/MD upload & processing)
-│   │   ├── routes_jobs.py          # Background job lifecycle & polling
-│   │   ├── routes_exports.py       # Standard exports (JSON, JSONL, MD, TXT)
-│   │   └── routes_ai.py            # AI endpoints (chunk, embed, enhance, export)
-│   ├── core/                       # Security, logging, and configuration
-│   │   ├── config.py               # Pydantic Settings (.env loader)
-│   │   ├── logging_config.py       # Structured logging setup
-│   │   └── security.py             # SSRF prevention, IP validator, file sanitizer
-│   ├── schemas/                    # Pydantic v2 schemas and models
-│   │   ├── chunks.py               # DocumentChunk and ChunkingRequest models
-│   │   ├── documents.py            # ExtractedDocument, ExtractionAttempt, QualityReport
-│   │   ├── requests.py             # ExtractionRequest, SingleExtract, CompareRequest
-│   │   └── responses.py            # Standardized API response wrappers
-│   ├── services/                   # Business and processing logic
-│   │   ├── extractors/             # Four independent extraction engines
-│   │   │   ├── base.py             # Standardized EngineResult dataclass
-│   │   │   ├── trafilatura_engine.py # Engine A: Trafilatura
-│   │   │   ├── bs4_engine.py       # Engine B: BeautifulSoup (DOM & Tables)
-│   │   │   ├── crawl4ai_engine.py  # Engine C: Crawl4AI (Browser Crawler)
-│   │   │   └── playwright_engine.py# Engine D: Native Playwright Chromium (Hydration & Bypass)
-│   │   ├── file_processor.py       # File parsing, AI enhancement, chunking & embedding
-│   │   ├── loading_detector.py     # Skeleton & animated loading screen detector/bypass
-│   │   ├── normalizer.py           # Persian/Arabic text and Unicode normalizer
-│   │   ├── page_classifier.py      # Multi-type page classifier (article, docs, spa, about, etc.)
-│   │   ├── quality_checker.py      # 0-100 quality scoring & deduplication
-│   │   ├── extractor.py            # Unified Coordinator (Auto, Fallback & Compare modes)
-│   │   ├── crawler.py              # BFS async crawler orchestrator
-│   │   ├── chunker.py              # DocumentChunker (heading, paragraph, sentence, fixed)
-│   │   ├── embedding_service.py    # 1536D Vector embedding batcher
-│   │   ├── rag_enhancer.py         # LLM metadata, Q&A & evidence verification
-│   │   ├── content_cleaner.py      # DOM boilerplate cleaner
-│   │   ├── export_service.py       # File generation and disk serialization
-│   │   ├── link_discovery.py       # Link extraction & metadata discovery
-│   │   ├── robots_parser.py        # robots.txt rule evaluator
-│   │   ├── sitemap_discovery.py    # XML sitemap parser with index recursion
-│   │   └── url_normalizer.py       # Canonicalization and deduplication
-│   ├── jobs/                       # In-memory background job manager
-│   │   ├── manager.py              # Job state orchestrator and cancellation
-│   │   └── models.py               # Job metadata and status enums
-│   └── static/                     # Modern Minimal Dark Frontend (GUI)
-│       ├── index.html              # Rounded UI with Extraction, Discovery & File tabs
-│       ├── css/style.css           # 22px cards, 14px inputs, pill badges
-│       └── js/app.js               # Reactive state manager, polling, file upload & exports
-├── tests/                          # Automated Pytest suite (234 passing tests)
-│   ├── test_ai_features.py         # 36 tests: Chunking, Embedding batching, RAG enhancer
-│   ├── test_api_and_integration.py # 13 tests: Discovery, Extraction, and Job endpoints
-│   ├── test_chunking_advanced.py   # 16 tests: Advanced heading hierarchy & Persian chunking
-│   ├── test_core.py                # 56 tests: SSRF mitigation, IP ranges, sanitization
-│   ├── test_extraction_and_cleaning.py # 10 tests: Cleaning, whitespace & quality scoring
-│   ├── test_file_processing.py     # 23 tests: JSON/MD uploads, AI, chunking & embeddings
-│   ├── test_loading_screen_bypass.py # 10 tests: Loading screen detection, bypass & DOM wait
-│   ├── test_mock_website_integration.py # 2 tests: Full site crawl on deterministic mock servers
-│   ├── test_normalizer.py          # 16 tests: Persian/Arabic Unicode normalization & ZWNJ
-│   ├── test_playwright_engine.py   # 8 tests: Playwright Chromium engine & Proactor fallback
-│   ├── test_redirect_and_crawler_safety.py # 8 tests: Redirect cycles and safety guards
-│   ├── test_services.py            # 19 tests: Crawler, normalizer, sitemap, robots parser
-│   └── test_three_engines_and_pipelines.py # 17 tests: Multi-engine workflows & compare mode
-├── output/                         # Local storage for exported files (organized by job_id)
-├── logs/                           # Structured system logs
-├── requirements.txt                # Python package dependencies
-├── pyproject.toml                  # Pytest configuration
-├── .env.example                    # Environment configuration template
-└── README.md                       # Comprehensive documentation
+# 6. Execute Hybrid Search (Dense + BM25 RRF)
+matches = client.vector_store.search(
+    query="autonomous web crawling and semantic chunking",
+    top_k=5,
+    hybrid=True
+)
+for match in matches:
+    print(f"Score {match.score:.3f} | {match.text[:90]}...")
+```
+
+### Developer CLI (`nexora`)
+
+Nexora includes a complete developer CLI for automation, cron jobs, and terminal workflows:
+
+```bash
+# Display help and available command groups
+nexora --help
+
+# 1. Autonomous Web Crawler
+nexora crawl --url https://example.com --max-depth 3 --max-pages 100 --concurrency 5
+
+# 2. 4-Engine Content Extraction
+nexora extract --url https://example.com/article --engine playwright --output ./output.md
+
+# 3. File Processing & Ingestion
+nexora files process --path ./manual.pdf --chunk --embed
+
+# 4. Information Retrieval Benchmarking
+nexora eval run --dataset prod_benchmark_v1 --top-k 5
+
+# 5. Hybrid Vector Store Search
+nexora search --query "dynamic hydration bypass" --top-k 3 --hybrid
 ```
 
 ---
 
-## ⚡ Quickstart Guide
+## 🛠️ Quickstart Guide
 
 ### Prerequisites
-- Python **3.10+** (tested on 3.10, 3.11, 3.12, 3.13)
-- Playwright Chromium browser binary
+- **Python**: 3.10, 3.11, or 3.12
+- **Git**
+- **Operating System**: Linux, macOS, or Windows (Windows Proactor Event Loop supported out-of-the-box)
 
-### 1. Clone the Repository
+### Step 1: Clone the Repository
+
 ```bash
-git clone https://github.com/your-username/crawlbot.git
-cd crawlbot
+git clone https://github.com/your-username/nexora.git
+cd nexora
 ```
 
-### 2. Virtual Environment Setup
+### Step 2: Setup Virtual Environment
 
-**Windows (PowerShell):**
-```powershell
-python -m venv venv
-.\venv\Scripts\Activate.ps1
+```bash
+# Create virtual environment
+python -m venv .venv
+
+# Activate virtual environment
+# Windows (PowerShell):
+.venv\Scripts\Activate.ps1
+# Linux / macOS:
+source .venv/bin/activate
 ```
 
-**Linux / macOS (Bash):**
-```bash
-python3 -m venv venv
-source venv/bin/activate
-```
+### Step 3: Install Dependencies & Headless Browsers
 
-### 3. Install Dependencies & Playwright Browser
 ```bash
-pip install --upgrade pip
+# Install core platform requirements
 pip install -r requirements.txt
+
+# Install Playwright Chromium headless browser binaries
 playwright install chromium
 ```
 
-### 4. Configure Environment Variables
-Copy `.env.example` to `.env`:
+### Step 4: Configure Environment Variables
+
 ```bash
+# Copy template configuration
 cp .env.example .env
 ```
 
-Configure your settings:
-```dotenv
-# Server Configuration
-CRAWLBOT_HOST=127.0.0.1
-CRAWLBOT_PORT=8000
-CRAWLBOT_DEBUG=false
+Key environment configuration options in `.env`:
 
-# Extraction & Crawler Defaults
-CRAWLBOT_MAX_CRAWL_DEPTH=3
-CRAWLBOT_MAX_PAGES=500
-CRAWLBOT_DEFAULT_EXTRACTION_STRATEGY=auto
+```ini
+APP_ENV=development
+HOST=127.0.0.1
+PORT=8000
+LOG_LEVEL=INFO
 
-# OpenAI / Third-Party LLM Provider (Optional for chunking; required for LLM and Embedding)
-CRAWLBOT_OPENAI_API_KEY=sk-...
-CRAWLBOT_OPENAI_BASE_URL=https://api.openai.com/v1
+# Master Secret (leave blank for local open development)
+API_KEY=cbk_master_secret_key
 
-# Models
-CRAWLBOT_EMBEDDING_MODEL=text-embedding-3-small
-CRAWLBOT_LLM_MODEL=gpt-4o-mini
-CRAWLBOT_AI_CONCURRENCY=5
+# Optional: AI Provider Keys for RAG and Vector Embeddings
+OPENAI_API_KEY=sk-...
+GEMINI_API_KEY=AIzaSy...
 ```
 
-> **Third-Party LLM Gateways:** You can set `CRAWLBOT_OPENAI_BASE_URL` to any compatible provider such as **OpenRouter** (`https://openrouter.ai/api/v1`), **DeepSeek**, or local inference servers (**Ollama** / **vLLM**).
+### Step 5: Launch Nexora Studio
 
-### 5. Launch Crawlbot Studio
-
-The recommended way to start Crawlbot is using the dedicated runner:
 ```bash
 python run.py
 ```
-> **Note for Windows Users:** `run.py` automatically initializes `asyncio.WindowsProactorEventLoopPolicy()`, ensuring that Playwright's headless Chromium subprocesses execute without `NotImplementedError` issues.
 
-Alternatively, launch directly via Uvicorn:
-```bash
-uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
-```
-
-Open your browser and navigate to:
-👉 **[http://127.0.0.1:8000](http://127.0.0.1:8000)**
+Access the platform:
+- 🌐 **Nexora Studio UI**: [http://127.0.0.1:8000/](http://127.0.0.1:8000/)
+- 📚 **Interactive API Portal**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+- ⚙️ **OpenAPI JSON Spec**: [http://127.0.0.1:8000/openapi.json](http://127.0.0.1:8000/openapi.json)
+- 🛠️ **Raw Swagger UI**: [http://127.0.0.1:8000/swagger](http://127.0.0.1:8000/swagger)
 
 ---
 
-## 📡 REST API Reference
+## 🧪 Rigorous Testing & Quality Assurance
 
-Interactive Swagger UI documentation is available at `http://127.0.0.1:8000/docs`.
-
-### Extraction & Benchmark Endpoints
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/api/extraction/single` | Instant synchronous extraction of a single URL with specified engine (`auto`, `playwright`, `trafilatura`, `beautifulsoup`, `crawl4ai`) |
-| `POST` | `/api/extraction/compare` | Benchmark all engines concurrently on a single URL with quality & latency scores |
-| `POST` | `/api/extraction/start` | Start background multi-URL extraction job with custom strategy, render mode, and quality threshold |
-| `GET` | `/api/extraction/status/{job_id}` | Poll extraction progress, attempt logs, and document summaries |
-| `POST` | `/api/extraction/retry/{job_id}` | Retry failed or blocked URLs from a previous run |
-| `POST` | `/api/extraction/cancel/{job_id}` | Terminate an active extraction job |
-
-### File Processing Studio Endpoints
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/api/files/process` | Upload JSON, JSONL, or Markdown files and execute AI enhancement, chunking, and/or vector embedding |
-| `GET` | `/api/files/supported-formats` | List supported file extensions and accepted schemas |
-
-### Web Discovery Endpoints
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/api/discovery/start` | Launch asynchronous BFS link discovery with domain boundaries |
-| `GET` | `/api/discovery/status/{job_id}` | Poll discovery progress and discovered URLs |
-| `POST` | `/api/discovery/cancel/{job_id}` | Abort an active discovery crawl |
-
-### AI & RAG Endpoints
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/api/ai/chunk` | Segment documents into chunks (`semantic_heading`, `paragraph`, `sentence`, `fixed_size`) |
-| `POST` | `/api/ai/embed` | Generate 1536-D vector embeddings for generated chunks |
-| `POST` | `/api/ai/enhance` | Generate verified Q&A pairs, summaries, and topic metadata with evidence citation |
-| `POST` | `/api/ai/export` | Download AI assets (`jsonl_chunks`, `json_chunks`, `json_enhanced`, `jsonl_enhanced`) |
-| `GET` | `/api/ai/status` | Verify LLM/Embedding provider connectivity |
-
-### Export Endpoints
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/api/export/download` | Export extracted documents (`json`, `jsonl`, `markdown`, `text`) |
-
----
-
-## 📦 Output Artifacts & Data Schema
-
-All generated extraction outputs are organized under `output/<job_id>/`:
-
-```text
-output/
-└── <job_id>/
-    ├── documents.json            # Array of all extracted documents with metadata & quality reports
-    ├── documents.jsonl           # Line-delimited JSON for stream processing
-    ├── markdown/                 # Individual Markdown files with YAML Frontmatter
-    │   ├── site_com_about_8f2a1b3c.md
-    │   └── site_com_docs_api_e5f6g7h8.md
-    └── text/                     # Clean plain text files with extraction headers
-        ├── site_com_about_8f2a1b3c.txt
-        └── site_com_docs_api_e5f6g7h8.txt
-```
-
-### Standardized `ExtractedDocument` JSON Schema
-```json
-{
-  "document_id": "a3b8c2d1e4f50912",
-  "source_url": "https://example.com/about",
-  "final_url": "https://example.com/about",
-  "canonical_url": "https://example.com/about",
-  "title": "About Us — Engineering & Innovation",
-  "language": "fa",
-  "page_type": "about",
-  "extractor_used": "playwright",
-  "extraction_attempts": [
-    {
-      "engine": "playwright",
-      "status": "success",
-      "latency_ms": 2840.5,
-      "char_count": 5420,
-      "word_count": 755,
-      "quality_score": 88
-    }
-  ],
-  "quality_report": {
-    "score": 88,
-    "text_density": 0.41,
-    "heading_count": 45,
-    "paragraph_count": 12,
-    "passed": true,
-    "reasons": [
-      "Substantial word count (755 words)",
-      "Well-structured with 45 headings",
-      "High text density (41.0%)"
-    ]
-  },
-  "content_markdown": "# درباره ما\n\nما تیمی از مهندسان نرم‌افزار هستیم...",
-  "content_text": "درباره ما\n\nما تیمی از مهندسان نرم‌افزار هستیم...",
-  "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "word_count": 755,
-  "character_count": 5420,
-  "status": "success"
-}
-```
-
----
-
-## 🔒 Enterprise Security Hardening
-
-- **Multi-Hop SSRF Firewall (`app/core/security.py`):** Real-time OS DNS resolution and IP evaluation on every HTTP redirect hop. Blocks loopback addresses (`127.0.0.0/8`, `::1`), private ranges (RFC-1918), AWS/GCP cloud metadata (`169.254.169.254`), link-local, and multicast addresses.
-- **Protocol & Scheme Restriction:** Whitelists only `http://` and `https://`. Automatically discards dangerous pseudo-schemes (`file://`, `data:`, `javascript:`).
-- **Embedded Credential Stripping:** Strips userinfo components from URLs (`http://user:pass@host`).
-- **Path Traversal Defense:** Sanitizes all export filenames and job directory paths using strict alphanumeric allowlists.
-- **Resource Leak Prevention:** Automatic context destruction and isolated thread destruction for Chromium instances.
-
----
-
-## 🧪 Comprehensive Automated Test Suite
-
-Crawlbot is backed by **234 automated unit and integration tests** guaranteeing 100% test coverage and zero regression:
+Nexora enforces strict code quality with a comprehensive suite of **474 automated tests** covering anti-bot evasion, SSRF security, vector math, IR evaluation, and multi-tenant data isolation:
 
 ```bash
-pytest -v
+# Run the complete test suite
+pytest -q
 ```
 
-```text
-======================= 234 passed, 1 warning in 21.26s =======================
+```
+================= 474 passed, 7 warnings in 69.81s (0:01:09) ==================
 ```
 
-| Test Suite | Tests | Scope Covered |
-|---|---|---|
-| `test_core.py` | 56 | SSRF mitigation, IP range checks, scheme sanitization, path traversal defense |
-| `test_ai_features.py` | 36 | Chunking algorithms, overlap calculations, embedding batching, RAG Q&A verification |
-| `test_file_processing.py` | 23 | File upload endpoint, JSON/MD parsing, AI optimization, chunking, and embedding |
-| `test_services.py` | 19 | BFS crawler mechanics, canonical URL normalizer, XML sitemap parsing, robots parser |
-| `test_three_engines_and_pipelines.py` | 17 | Multi-engine workflows, Trafilatura, BS4, Crawl4AI, Auto fallback & Compare mode |
-| `test_chunking_advanced.py` | 16 | Semantic heading hierarchy preservation, token budget packing, Persian chunking |
-| `test_normalizer.py` | 16 | Persian & Arabic Unicode normalization, ZWNJ rules, digit & punctuation conversion |
-| `test_api_and_integration.py` | 13 | RESTful route endpoints, background jobs, cancel/retry APIs, UI asset serving |
-| `test_loading_screen_bypass.py` | 10 | Loading screen detection, spinner bypass, DOM settlement, auto-scroll hydration |
-| `test_playwright_engine.py` | 8 | Native Playwright Chromium engine, Windows Proactor isolation, error recovery |
-| `test_redirect_and_crawler_safety.py` | 8 | Redirect cycle detection, self-redirects, max-redirect caps |
-| `test_extraction_and_cleaning.py` | 10 | DOM cleaning, text whitespace normalization, quality status evaluation |
-| `test_mock_website_integration.py` | 2 | End-to-end full site crawl and extraction lifecycle on deterministic mock servers |
+<details>
+<summary><b>🔍 Click to expand the 28 Test Modules Breakdown</b></summary>
+
+| Test Suite Module | Focus Area | Status |
+| :--- | :--- | :---: |
+| `test_phase1_antibot_core.py` | Anti-bot fingerprinting, anti-loader bypass | ✅ PASS |
+| `test_phase1_security_hardening.py` | SSRF prevention, private IP blocking, DNS rebinding | ✅ PASS |
+| `test_phase1_stabilization.py` | Concurrency limits, watchdog timeouts | ✅ PASS |
+| `test_phase2_byok_security.py` | Customer secret encryption, BYOK credential rotation | ✅ PASS |
+| `test_phase2_data_studio.py` | Stage inspection, chunk merging, splitting | ✅ PASS |
+| `test_phase2_response_classification.py` | Page type classifier, HTML fallback router | ✅ PASS |
+| `test_phase3_rag_evaluation.py` | Recall@K, MRR, nDCG metrics, comparative runs | ✅ PASS |
+| `test_phase3_tenant_data_isolation.py` | Multi-tenant storage boundary enforcement | ✅ PASS |
+| `test_phase4_developer_platform.py` | Incremental sync, API v1 routing, OpenAPI integrity | ✅ PASS |
+| `test_phase4_usage_metering_and_quotas.py` | Token quotas, request rate limiting | ✅ PASS |
+| `test_semantic_repair.py` | Markdown tag closing, table alignment repair | ✅ PASS |
+| `test_multi_algorithm_discovery.py` | BFS vs DFS vs Sitemap crawler routing | ✅ PASS |
+| `test_normalizer.py` | Persian/Arabic unicode normalization, half-spaces | ✅ PASS |
+| `test_playwright_engine.py` | Chromium headless lifecycle, dynamic SPA wait | ✅ PASS |
+| `test_rag_pipeline_and_deduplication.py` | Sentence chunking, SHA-256 deduplication | ✅ PASS |
+
+</details>
+
+---
+
+## 🐳 Production Deployment (Docker & Systemd)
+
+### Docker & Docker Compose
+
+Deploy the complete Nexora platform using Docker:
+
+```yaml
+version: "3.9"
+
+services:
+  nexora:
+    build: .
+    container_name: nexora-studio
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=production
+      - HOST=0.0.0.0
+      - PORT=8000
+      - API_KEY=${NEXORA_MASTER_SECRET}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+```
+
+```bash
+# Build and run containers
+docker compose up -d --build
+```
+
+### Linux Systemd Service
+
+```ini
+[Unit]
+Description=Nexora Web Intelligence & RAG Platform
+After=network.target
+
+[Service]
+Type=simple
+User=nexora
+WorkingDirectory=/opt/nexora
+ExecStart=/opt/nexora/.venv/bin/python run.py
+Restart=always
+RestartSec=5
+Environment=APP_ENV=production
+
+[Install]
+WantedBy=multi-user.target
+```
+
+---
+
+## 🚀 Pushing to GitHub (Step-by-Step Guide)
+
+To publish your Nexora repository to GitHub:
+
+### 1. Stage Cleaned Files and Commit
+All temporary files (`scratch/`, `data/`, `.env`) are automatically excluded by our `.gitignore`:
+
+```bash
+git add .
+git commit -m "feat(nexora): launch Nexora Studio v5.0 with 4-engine crawler, IR evaluation, interactive API docs, and multi-tenant SDK"
+```
+
+### 2. Connect to your GitHub Repository
+Create a new empty repository named `Nexora` on GitHub (without initializing README/license):
+
+```bash
+# Rename branch to main
+git branch -M main
+
+# Set remote origin URL (replace with your GitHub username)
+git remote set-url origin https://github.com/<YOUR_USERNAME>/Nexora.git
+
+# Push code to GitHub
+git push -u origin main
+```
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcomed! Please follow these guidelines:
+
+1. Fork the Project on GitHub.
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`).
+3. Verify test passing (`pytest -q`).
+4. Commit your Changes (`git commit -m 'feat: add amazing feature'`).
+5. Push to the Branch (`git push origin feature/AmazingFeature`).
+6. Open a Pull Request.
 
 ---
 
 ## 📄 License
 
-This project is open-source software licensed under the [MIT License](LICENSE).
+Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for more information.
+
+<div align="center">
+  <sub>Built with ❤️ by the Nexora Intelligence Team. Engineered for production RAG & Agentic AI workflows.</sub>
+</div>

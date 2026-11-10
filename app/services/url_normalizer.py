@@ -27,6 +27,26 @@ INVALID_SCHEME_PREFIXES = (
     "ios-app:",
 )
 
+TRACKING_PARAMS: frozenset[str] = frozenset({
+    "utm_source",
+    "utm_medium",
+    "utm_campaign",
+    "utm_term",
+    "utm_content",
+    "utm_id",
+    "gclid",
+    "fbclid",
+    "msclkid",
+    "dclid",
+    "twclid",
+    "mc_eid",
+    "igshid",
+    "_ga",
+    "_hsenc",
+    "_hsmi",
+    "yclid",
+})
+
 
 class URLNormalizer:
     """Service for normalizing URLs and detecting duplicates across crawl runs."""
@@ -36,6 +56,7 @@ class URLNormalizer:
         keep_query_params: bool = False,
         allowed_domains: list[str] | None = None,
         allow_subdomains: bool = False,
+        strip_tracking_params: bool = True,
     ) -> None:
         """Initialize the URLNormalizer.
 
@@ -43,8 +64,10 @@ class URLNormalizer:
             keep_query_params: Whether to retain and sort query parameters or strip them.
             allowed_domains: List of domain names that are permissible for crawling.
             allow_subdomains: Whether subdomains of allowed/base domains are considered in-scope.
+            strip_tracking_params: Whether to strip analytics/ad tracking parameters (utm_*, gclid, etc.).
         """
         self.keep_query_params: bool = keep_query_params
+        self.strip_tracking_params: bool = strip_tracking_params
         self.allowed_domains: list[str] = [
             self.extract_domain(d) for d in (allowed_domains or []) if self.extract_domain(d)
         ]
@@ -128,6 +151,11 @@ class URLNormalizer:
 
         # 8. Normalize path (remove //, resolve /../)
         raw_path = parsed.path or "/"
+        # Unquote safe UTF-8 characters (e.g. Persian/Arabic) to ensure consistent canonical representation
+        try:
+            raw_path = unquote(raw_path)
+        except Exception:
+            pass
         # Collapse multiple slashes
         collapsed_path = re.sub(r"/+", "/", raw_path)
         # Resolve '.' and '..' segments
@@ -145,11 +173,13 @@ class URLNormalizer:
             if not normalized_path.endswith("/"):
                 normalized_path = f"{normalized_path}/"
 
-        # 7. Remove or sort query parameters based on config
+        # 7. Remove or sort query parameters based on config (stripping tracking parameters if enabled)
         query = ""
         if self.keep_query_params and parsed.query:
             try:
                 params = parse_qsl(parsed.query, keep_blank_values=True)
+                if self.strip_tracking_params:
+                    params = [kv for kv in params if kv[0].lower() not in TRACKING_PARAMS]
                 sorted_params = sorted(params, key=lambda kv: (kv[0], kv[1]))
                 query = urlencode(sorted_params, doseq=True)
             except Exception:

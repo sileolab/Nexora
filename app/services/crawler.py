@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import time
 from typing import Any, Callable, Coroutine, NamedTuple, Optional
 from urllib.parse import urlparse
 
@@ -80,10 +81,31 @@ class DiscoveryResult:
         }
 
 
+DEFAULT_BROWSER_USER_AGENT: str = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/124.0.0.0 Safari/537.36"
+)
+
+DEFAULT_BROWSER_HEADERS: dict[str, str] = {
+    "User-Agent": DEFAULT_BROWSER_USER_AGENT,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "fa-IR,fa;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+    "Sec-Ch-Ua-Mobile": "?0",
+    "Sec-Ch-Ua-Platform": '"Windows"',
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Upgrade-Insecure-Requests": "1",
+}
+
+
 class CrawlerService:
     """Main crawler orchestration service."""
 
-    USER_AGENT: str = "Crawlbot/1.0 (+https://github.com/crawlbot)"
+    USER_AGENT: str = DEFAULT_BROWSER_USER_AGENT
 
     def __init__(
         self,
@@ -104,6 +126,10 @@ class CrawlerService:
         progress_callback: Optional[Callable[[DiscoveryResult], Coroutine[Any, Any, None] | None]] = None,
         cancel_event: Optional[asyncio.Event] = None,
         client: Optional[httpx.AsyncClient] = None,
+        tenant_id: Optional[str] = None,
+        job_id: Optional[str] = None,
+        headers: Optional[dict[str, str]] = None,
+        enable_browser_fallback: bool = True,
     ) -> None:
         """Initialize the crawler service.
 
@@ -124,6 +150,8 @@ class CrawlerService:
             max_response_size: Maximum allowable response body in bytes (default 10MB).
             progress_callback: Optional callback invoked as progress occurs.
             cancel_event: Optional asyncio.Event for cancelling the crawling process.
+            client: Optional injected httpx.AsyncClient (e.g. for testing with mock transport).
+            tenant_id: Optional tenant/workspace identifier for session isolation.
         """
         self.root_url: str = root_url.strip()
         self.max_depth: int = max(0, max_depth)
@@ -139,6 +167,12 @@ class CrawlerService:
         self.progress_callback = progress_callback
         self.cancel_event: asyncio.Event = cancel_event if cancel_event is not None else asyncio.Event()
         self.client: Optional[httpx.AsyncClient] = client
+        self.tenant_id: Optional[str] = tenant_id
+        self.job_id: Optional[str] = job_id
+        self.headers: dict[str, str] = dict(DEFAULT_BROWSER_HEADERS)
+        if headers:
+            self.headers.update(headers)
+        self.enable_browser_fallback: bool = enable_browser_fallback
 
         # Initialize URLNormalizer with configuration
         self.normalizer: URLNormalizer = URLNormalizer(
@@ -215,22 +249,23 @@ class CrawlerService:
             await self._notify_progress()
             return self.result
 
-        # 2. Execute with injected client or new AsyncClient
+        # 2. Execute with injected client or managed session client
         if self.client is not None:
             await self._run_crawl_pipeline(self.client, normalized_root)
         else:
-            limits = httpx.Limits(
-                max_keepalive_connections=self.max_concurrency * 2,
-                max_connections=self.max_concurrency * 4,
+            from app.services.anti_bot import get_antibot_manager
+            client = await get_antibot_manager().session_manager.get_client(
+                tenant_id=self.tenant_id,
+                headers=self.headers,
             )
-            async with httpx.AsyncClient(
-                timeout=self.request_timeout,
-                headers={"User-Agent": self.USER_AGENT, "Accept": "text/html,application/xhtml+xml"},
-                follow_redirects=False,
-                verify=True,
-                limits=limits,
-            ) as client:
+            try:
                 await self._run_crawl_pipeline(client, normalized_root)
+            finally:
+                if not self.tenant_id:
+                    try:
+                        await get_antibot_manager().session_manager.close_client(None)
+                    except Exception:
+                        pass
 
         # 6. Final notification and return
         await self._notify_progress()
@@ -248,26 +283,33 @@ class CrawlerService:
         # 3. Fetch and parse robots.txt
         try:
             logger.info("Fetching robots.txt for %s", self.root_url)
-            await self.robots_checker.fetch_robots(self.root_url, client)
+            await self.robots_checker.fetch_robots(self.root_url, client, headers=self.headers)
         except Exception as exc:
             logger.warning("Error fetching robots.txt: %s", exc)
 
         # Check if robots.txt specifies a crawl delay
         robots_delay = self.robots_checker.get_crawl_delay(self.root_url, self.USER_AGENT)
-        if robots_delay is not None and robots_delay > self.delay:
-            logger.info("Respecting robots.txt crawl delay: %.2fs (was %.2fs)", robots_delay, self.delay)
-            self.delay = robots_delay
+        if robots_delay is not None:
+            if robots_delay > self.delay:
+                logger.info("Respecting robots.txt crawl delay: %.2fs (was %.2fs)", robots_delay, self.delay)
+                self.delay = robots_delay
+            try:
+                from app.services.anti_bot import get_antibot_manager
+                get_antibot_manager().policy_manager.set_crawl_delay(self.base_domain, robots_delay)
+            except Exception:
+                pass
 
         # Check if root URL is allowed by robots.txt
-        if not self.robots_checker.is_allowed(normalized_root, self.USER_AGENT):
-            logger.warning("Root URL is disallowed by robots.txt: %s", normalized_root)
+        root_decision = self.robots_checker.can_fetch_detailed(normalized_root, self.USER_AGENT)
+        if not root_decision.allowed:
+            logger.warning("Root URL is disallowed by robots.txt: %s (%s)", normalized_root, root_decision.reason)
             self.result.blocked.add(normalized_root)
             self.result.discovered[normalized_root] = {
                 "title": None,
                 "status": 403,
                 "depth": 0,
                 "source": "root",
-                "error": "Disallowed by robots.txt",
+                "error": f"Disallowed by robots.txt: {root_decision.reason}",
             }
             await self._notify_progress()
             return
@@ -296,7 +338,7 @@ class CrawlerService:
         """Discover and record URLs from robots.txt sitemaps or standard locations."""
         try:
             robots_sitemaps = self.robots_checker.get_sitemaps(self.root_url)
-            sitemap_parser = SitemapParser(client, max_urls=self.max_pages)
+            sitemap_parser = SitemapParser(client, max_urls=self.max_pages, headers=self.headers)
 
             sitemap_urls: list[str] = []
             if robots_sitemaps:
@@ -525,6 +567,60 @@ class CrawlerService:
 
                 await queue.put((link, depth + 1))
 
+    def _record_metric(self, classification: str, latency: float = 0.0) -> None:
+        """Record telemetry to AntiBotManager metrics collector."""
+        try:
+            from app.services.anti_bot import get_antibot_manager
+            get_antibot_manager().metrics.record_request(
+                job_id=self.job_id,
+                classification=classification,
+                latency_seconds=latency,
+            )
+        except Exception as exc:
+            logger.debug("Failed recording crawl metric: %s", exc)
+
+    def _record_browser_fallback(self) -> None:
+        """Record browser promotion telemetry."""
+        try:
+            from app.services.anti_bot import get_antibot_manager
+            get_antibot_manager().record_browser_fallback(job_id=self.job_id)
+        except Exception as exc:
+            logger.debug("Failed recording browser fallback metric: %s", exc)
+
+    async def _fetch_via_browser(self, url: str, client: Optional[httpx.AsyncClient] = None) -> Optional[FetchResult]:
+        """Attempt to fetch and render page using headless Playwright Chromium."""
+        try:
+            from app.services.extractors.playwright_engine import PlaywrightEngine
+            timeout_ms = max(25000, int(self.request_timeout * 1000))
+            engine = PlaywrightEngine(headless=True, page_timeout=timeout_ms, default_loading_delay=3.5)
+            engine_res = await engine.extract(url=url, render_js=True)
+
+            # Transfer challenge clearance cookies to HTTP client for wire-speed subsequent fetches
+            if client is not None and getattr(engine_res, "cookies", None):
+                try:
+                    for c_name, c_val in engine_res.cookies.items():
+                        client.cookies.set(c_name, c_val)
+                    logger.info("Transferred %d clearance cookies from Playwright to HTTP client for %s", len(engine_res.cookies), url)
+                except Exception as ck_err:
+                    logger.debug("Failed setting transferred cookies on HTTP client: %s", ck_err)
+
+            rendered = engine_res.raw_html or (engine_res.metadata.get("raw_html") if engine_res.metadata else None)
+            if rendered and len(rendered) > 50:
+                logger.info(
+                    "Playwright browser fallback succeeded for %s (%d bytes rendered)",
+                    url,
+                    len(rendered),
+                )
+                return FetchResult(
+                    html=rendered,
+                    status_code=engine_res.status_code or 200,
+                    final_url=engine_res.url or url,
+                    error=None,
+                )
+        except Exception as exc:
+            logger.warning("Browser fallback execution failed for %s: %s", url, exc)
+        return None
+
     async def _fetch_page(self, client: httpx.AsyncClient, url: str) -> FetchResult:
         """Fetch a page with comprehensive safety checks and controlled redirects.
 
@@ -554,13 +650,16 @@ class CrawlerService:
             if not is_safe:
                 logger.warning("SSRF check blocked URL: %s (%s)", current_url, reason)
                 self.result.blocked.add(current_url)
+                self._record_metric("HTTP_FORBIDDEN", 0.0)
                 return FetchResult(None, 403, current_url, f"blocked_ssrf: {reason}")
 
             # 2. Check robots.txt
-            if not self.robots_checker.is_allowed(current_url, self.USER_AGENT):
-                logger.info("Robots.txt blocked URL: %s", current_url)
+            decision = self.robots_checker.can_fetch_detailed(current_url, self.USER_AGENT)
+            if not decision.allowed:
+                logger.info("Robots.txt blocked URL: %s (reason: %s)", current_url, decision.reason)
                 self.result.blocked.add(current_url)
-                return FetchResult(None, 403, current_url, "blocked_robots: Disallowed by robots.txt")
+                self._record_metric("ROBOTS_DENIED", 0.0)
+                return FetchResult(None, 403, current_url, f"blocked_robots: {decision.reason}")
 
             # 3. Check domain scope for redirected URL
             if not self.normalizer.is_same_domain(current_url, self.base_domain):
@@ -569,14 +668,22 @@ class CrawlerService:
 
             # 4. Stream request to enforce size limits under semaphore control
             async with self._semaphore:
+                fetch_start = time.perf_counter()
                 try:
-                    async with client.stream("GET", current_url, timeout=self.request_timeout) as response:
+                    async with client.stream(
+                        "GET",
+                        current_url,
+                        headers=self.headers,
+                        timeout=self.request_timeout,
+                    ) as response:
                         status_code = response.status_code
+                        elapsed = time.perf_counter() - fetch_start
 
                         # Handle redirects manually
                         if status_code in (301, 302, 303, 307, 308):
                             location = response.headers.get("Location")
                             if not location:
+                                self._record_metric("UNKNOWN_ERROR", elapsed)
                                 return FetchResult(None, status_code, current_url, "empty_location_header")
 
                             # Preserve trailing slash if present on location to prevent normalizer loop
@@ -589,11 +696,13 @@ class CrawlerService:
                                 preserve_trailing_slash=has_slash,
                             )
                             if not next_url:
+                                self._record_metric("UNKNOWN_ERROR", elapsed)
                                 return FetchResult(None, status_code, current_url, "invalid_redirect_url")
 
                             # Loop detection: immediate self-redirect
                             if next_url == current_url:
                                 logger.warning("Redirect loop (self-redirect) detected for %s", current_url)
+                                self._record_metric("UNKNOWN_ERROR", elapsed)
                                 return FetchResult(None, 311, current_url, "redirect_loop")
 
                             # Cycle detection: visited in current chain
@@ -603,6 +712,7 @@ class CrawlerService:
                                     " -> ".join(visited_chain),
                                     next_url,
                                 )
+                                self._record_metric("UNKNOWN_ERROR", elapsed)
                                 return FetchResult(None, 311, current_url, "redirect_loop")
 
                             redirect_count += 1
@@ -612,6 +722,7 @@ class CrawlerService:
                                     url,
                                     redirect_count,
                                 )
+                                self._record_metric("UNKNOWN_ERROR", elapsed)
                                 return FetchResult(None, 310, current_url, "too_many_redirects")
 
                             visited_chain.append(next_url)
@@ -620,6 +731,26 @@ class CrawlerService:
                             continue
 
                         if status_code != 200:
+                            if status_code in (401, 403, 503) and self.enable_browser_fallback:
+                                logger.info(
+                                    "HTTP %d on %s; attempting autonomous Playwright browser fallback...",
+                                    status_code,
+                                    current_url,
+                                )
+                                browser_res = await self._fetch_via_browser(current_url, client=client)
+                                if browser_res is not None and browser_res.html:
+                                    self._record_browser_fallback()
+                                    self._record_metric("SUCCESS", elapsed)
+                                    return browser_res
+
+                            if status_code in (401, 403):
+                                self._record_metric("HTTP_FORBIDDEN", elapsed)
+                            elif status_code == 429:
+                                self._record_metric("RATE_LIMITED", elapsed)
+                            elif status_code >= 500:
+                                self._record_metric("SERVER_ERROR", elapsed)
+                            else:
+                                self._record_metric("UNKNOWN_ERROR", elapsed)
                             return FetchResult(None, status_code, current_url, f"HTTP {status_code}")
 
                         # Filter non-HTML content types
@@ -628,6 +759,7 @@ class CrawlerService:
                             ct in content_type for ct in ("text/html", "application/xhtml+xml", "text/plain")
                         ):
                             logger.debug("Skipping non-HTML content type '%s' for %s", content_type, current_url)
+                            self._record_metric("SUCCESS", elapsed)
                             return FetchResult(None, status_code, current_url, f"non_html_content_type: {content_type}")
 
                         # Read stream incrementally up to max_response_size
@@ -651,13 +783,39 @@ class CrawlerService:
                         except Exception:
                             html_text = raw_bytes.decode("utf-8", errors="replace")
 
+                        # Check if static fetch returned an interstitial waiting challenge, preloader, or empty SPA shell
+                        if self.enable_browser_fallback:
+                            from app.services.loading_detector import is_interstitial_or_challenge, is_loading_screen
+                            is_challenge = is_interstitial_or_challenge(html=html_text, text=html_text)
+                            is_loader = (len(html_text.strip()) < 500 and is_loading_screen(html=html_text, text=html_text))
+                            if is_challenge or is_loader:
+                                logger.info(
+                                    "Static fetch for %s returned interstitial challenge or loading screen; triggering Playwright browser fallback...",
+                                    current_url,
+                                )
+                                browser_res = await self._fetch_via_browser(current_url, client=client)
+                                if browser_res is not None and browser_res.html:
+                                    self._record_browser_fallback()
+                                    self._record_metric("SUCCESS", elapsed)
+                                    return browser_res
+
+                        self._record_metric("SUCCESS", elapsed)
                         return FetchResult(html_text, status_code, current_url, None)
 
-                except (httpx.TimeoutException, httpx.RequestError) as exc:
+                except httpx.TimeoutException as exc:
+                    elapsed = time.perf_counter() - fetch_start
+                    logger.warning("HTTP timeout error fetching %s: %s", current_url, exc)
+                    self._record_metric("TIMEOUT", elapsed)
+                    return FetchResult(None, 0, current_url, f"connection_error: {exc}")
+                except httpx.RequestError as exc:
+                    elapsed = time.perf_counter() - fetch_start
                     logger.warning("HTTP connection error fetching %s: %s", current_url, exc)
+                    self._record_metric("NETWORK_ERROR", elapsed)
                     return FetchResult(None, 0, current_url, f"connection_error: {exc}")
                 except Exception as exc:
+                    elapsed = time.perf_counter() - fetch_start
                     logger.error("Unexpected error fetching %s: %s", current_url, exc)
+                    self._record_metric("UNKNOWN_ERROR", elapsed)
                     return FetchResult(None, 0, current_url, f"error: {exc}")
 
         logger.warning("Too many redirects encountered for %s", url)

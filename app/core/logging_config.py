@@ -14,6 +14,19 @@ DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 _logging_initialized: bool = False
 
 
+class SafeRotatingFileHandler(RotatingFileHandler):
+    """RotatingFileHandler that safely handles file locking on Windows during rollover."""
+
+    def doRollover(self) -> None:
+        """Perform rollover, safely catching WinError 32 / PermissionError if handles are open."""
+        try:
+            super().doRollover()
+        except (PermissionError, OSError):
+            # On Windows, open handles in concurrent workers or processes
+            # can lock the log file during rename. Gracefully ignore rollover failure.
+            pass
+
+
 def setup_logging(settings: Optional[Settings] = None) -> Callable[[str], logging.Logger]:
     """Configure structured logging for Crawlbot with console and file handlers.
 
@@ -37,7 +50,7 @@ def setup_logging(settings: Optional[Settings] = None) -> Callable[[str], loggin
 
     logs_dir = Path("logs")
     logs_dir.mkdir(parents=True, exist_ok=True)
-    log_file_path = logs_dir / "crawlbot.log"
+    log_file_path = logs_dir / "nexora.log"
 
     formatter = logging.Formatter(fmt=LOG_FORMAT, datefmt=DATE_FORMAT)
 
@@ -55,7 +68,7 @@ def setup_logging(settings: Optional[Settings] = None) -> Callable[[str], loggin
     root_logger.addHandler(console_handler)
 
     # Rotating File Handler (10MB max, 5 backups, UTF-8)
-    file_handler = RotatingFileHandler(
+    file_handler = SafeRotatingFileHandler(
         filename=str(log_file_path),
         maxBytes=10 * 1024 * 1024,
         backupCount=5,
@@ -70,13 +83,13 @@ def setup_logging(settings: Optional[Settings] = None) -> Callable[[str], loggin
     return get_logger
 
 
-def get_logger(name: str = "crawlbot") -> logging.Logger:
+def get_logger(name: str = "nexora") -> logging.Logger:
     """Retrieve a configured logger by name.
 
     If logging has not yet been initialized, setup_logging() is automatically executed.
 
     Args:
-        name: Name for the logger instance (defaults to 'crawlbot').
+        name: Name for the logger instance (defaults to 'nexora').
 
     Returns:
         logging.Logger: Configured logger instance.

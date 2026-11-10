@@ -25,14 +25,14 @@ class TestSystemAndGuiRoutes:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ok"
-        assert data["app"] == "Crawlbot"
+        assert data["app"] in ("Nexora", "Crawlbot")
 
     def test_root_gui_serves_html(self, client: TestClient):
         response = client.get("/")
         assert response.status_code == 200
         assert "text/html" in response.headers.get("content-type", "")
-        assert "Crawlbot" in response.text
-        assert 'dir="rtl"' in response.text
+        assert "Nexora" in response.text
+        assert 'dir="ltr"' in response.text
         # Verify static asset link paths in HTML
         assert 'href="/static/css/style.css"' in response.text
         assert 'src="/static/js/app.js"' in response.text

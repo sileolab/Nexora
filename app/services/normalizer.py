@@ -435,10 +435,16 @@ class PersianNormalizer:
         # 1. Fenced code blocks
         text = re.sub(r"```[\s\S]*?```", lambda m: make_token(m.group(0)), text)
 
-        # 2. Inline code
+        # 2. Block math formulas ($$...$$)
+        text = re.sub(r"\$\$[\s\S]*?\$\$", lambda m: make_token(m.group(0)), text)
+
+        # 3. Inline code
         text = re.sub(r"`[^`\n]+`", lambda m: make_token(m.group(0)), text)
 
-        # 3. HTML tags
+        # 4. Inline math formulas ($...$) avoiding literal currency
+        text = re.sub(r"(?<!\\)\$[^$\n]+\$", lambda m: make_token(m.group(0)), text)
+
+        # 5. HTML tags
         text = re.sub(r"</?[a-zA-Z][a-zA-Z0-9]*(?:\s+[^>]*)?>", lambda m: make_token(m.group(0)), text)
 
         # 4. Markdown links: protect destination URL while keeping anchor text normalizable

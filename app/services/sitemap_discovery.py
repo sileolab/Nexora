@@ -22,18 +22,37 @@ class SitemapParser:
 
     SITEMAP_NS: dict[str, str] = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
 
-    def __init__(self, client: httpx.AsyncClient, max_urls: int = 5000) -> None:
+    def __init__(
+        self,
+        client: httpx.AsyncClient,
+        max_urls: int = 5000,
+        headers: Optional[dict[str, str]] = None,
+    ) -> None:
         """Initialize the SitemapParser.
 
         Args:
             client: The httpx.AsyncClient to use for downloading sitemaps.
             max_urls: Maximum number of page URLs to discover and store.
+            headers: Optional headers (e.g. browser headers) to send with requests.
         """
         self.client: httpx.AsyncClient = client
         self.max_urls: int = max_urls
+        self.headers: Optional[dict[str, str]] = headers
         self._discovered_urls: list[str] = []
         self._discovered_set: set[str] = set()
         self._visited_sitemaps: set[str] = set()
+        self._failed_sitemaps: set[str] = set()
+        self._diagnostics: list[dict[str, Any]] = []
+
+    def get_diagnostics(self) -> dict[str, Any]:
+        """Return structured diagnostics of the sitemap discovery run."""
+        return {
+            "total_sitemaps_evaluated": len(self._visited_sitemaps),
+            "successful_sitemaps": len(self._visited_sitemaps) - len(self._failed_sitemaps),
+            "failed_sitemaps": len(self._failed_sitemaps),
+            "urls_discovered": len(self._discovered_urls),
+            "details": list(self._diagnostics),
+        }
 
     async def discover_from_robots(self, robots_sitemaps: list[str]) -> list[str]:
         """Parse sitemaps discovered from robots.txt.
@@ -69,7 +88,7 @@ class SitemapParser:
         if not clean_url:
             return []
 
-        if clean_url in self._visited_sitemaps:
+        if clean_url in self._visited_sitemaps or clean_url in self._failed_sitemaps:
             return []
         self._visited_sitemaps.add(clean_url)
 
@@ -77,19 +96,39 @@ class SitemapParser:
             return []
 
         try:
-            response = await self.client.get(clean_url, follow_redirects=True, timeout=15.0)
+            response = await self.client.get(clean_url, headers=self.headers, follow_redirects=True, timeout=15.0)
+            if response.status_code == 403:
+                logger.info(
+                    "Sitemap %s returned 403 Forbidden. Treating endpoint as restricted without marking domain as dead.",
+                    clean_url,
+                )
+                self._failed_sitemaps.add(clean_url)
+                self._diagnostics.append({"url": clean_url, "status": 403, "error": "forbidden"})
+                return []
             if response.status_code != 200:
                 logger.debug("Sitemap %s returned status %d", clean_url, response.status_code)
+                self._failed_sitemaps.add(clean_url)
+                self._diagnostics.append({"url": clean_url, "status": response.status_code, "error": f"HTTP {response.status_code}"})
                 return []
             content = response.content
         except Exception as exc:
             logger.warning("Failed to fetch sitemap %s: %s", clean_url, exc)
+            self._failed_sitemaps.add(clean_url)
+            self._diagnostics.append({"url": clean_url, "status": 0, "error": str(exc)})
             return []
 
         if not content:
+            self._failed_sitemaps.add(clean_url)
+            self._diagnostics.append({"url": clean_url, "status": 200, "error": "empty_body"})
             return []
 
         page_urls, sub_sitemaps = self._parse_sitemap_xml(content)
+        self._diagnostics.append({
+            "url": clean_url,
+            "status": 200,
+            "page_urls_count": len(page_urls),
+            "sub_sitemaps_count": len(sub_sitemaps),
+        })
         collected_page_urls: list[str] = []
 
         # Collect page URLs
@@ -132,7 +171,9 @@ class SitemapParser:
         candidates = [
             f"{clean_base}/sitemap.xml",
             f"{clean_base}/sitemap_index.xml",
+            f"{clean_base}/sitemaps.xml",
             f"{clean_base}/wp-sitemap.xml",
+            f"{clean_base}/sitemap/sitemap.xml",
         ]
 
         discovered: list[str] = []

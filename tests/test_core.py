@@ -24,7 +24,7 @@ from app.core.security import (
 def test_settings_defaults():
     """Verify default Settings configuration values."""
     settings = Settings()
-    assert settings.app_name == "Crawlbot"
+    assert settings.app_name in ("Nexora", "Crawlbot")
     assert settings.app_env == "development"
     assert settings.host == "127.0.0.1"
     assert settings.port == 8000

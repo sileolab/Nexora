@@ -31,6 +31,23 @@ if sys.platform == "win32":
         pass
 
 
+class BrowserConcurrencyLimiter:
+    """Manages dedicated global concurrency limit for headless browser processes."""
+    _semaphore: Optional[asyncio.Semaphore] = None
+    _max_concurrency: int = 2
+
+    @classmethod
+    def set_max_concurrency(cls, limit: int) -> None:
+        cls._max_concurrency = max(1, limit)
+        cls._semaphore = asyncio.Semaphore(cls._max_concurrency)
+
+    @classmethod
+    def get_semaphore(cls) -> asyncio.Semaphore:
+        if cls._semaphore is None:
+            cls._semaphore = asyncio.Semaphore(cls._max_concurrency)
+        return cls._semaphore
+
+
 class PlaywrightEngine:
     """Engine D implementation using native Playwright Chromium."""
 
@@ -55,6 +72,7 @@ class PlaywrightEngine:
         render_js: bool = True,
         loading_delay: float = 0.0,
         wait_for_selector: Optional[str] = None,
+        visible_only: bool = False,
     ) -> EngineResult:
         """Extract web content using native Playwright Chromium browser.
 
@@ -65,7 +83,7 @@ class PlaywrightEngine:
         if not render_js and html and html.strip():
             start_time = time.perf_counter()
             result = EngineResult(engine=self.ENGINE_NAME, success=False)
-            self._parse_static_html(html, url, result)
+            self._parse_static_html(html, url, result, visible_only=visible_only)
             result.latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
             result.browser_used = False
             return result
@@ -96,6 +114,7 @@ class PlaywrightEngine:
                     render_js,
                     loading_delay,
                     wait_for_selector,
+                    visible_only,
                 )
 
         return await self._extract_internal(
@@ -104,6 +123,7 @@ class PlaywrightEngine:
             render_js=render_js,
             loading_delay=loading_delay,
             wait_for_selector=wait_for_selector,
+            visible_only=visible_only,
         )
 
     def _extract_in_dedicated_proactor_thread(
@@ -113,6 +133,7 @@ class PlaywrightEngine:
         render_js: bool = True,
         loading_delay: float = 0.0,
         wait_for_selector: Optional[str] = None,
+        visible_only: bool = False,
     ) -> EngineResult:
         """Run Playwright extraction inside an isolated worker thread with dedicated ProactorEventLoop."""
         thread_loop = asyncio.ProactorEventLoop()
@@ -125,6 +146,7 @@ class PlaywrightEngine:
                     render_js=render_js,
                     loading_delay=loading_delay,
                     wait_for_selector=wait_for_selector,
+                    visible_only=visible_only,
                 )
             )
         finally:
@@ -140,6 +162,7 @@ class PlaywrightEngine:
         render_js: bool = True,
         loading_delay: float = 0.0,
         wait_for_selector: Optional[str] = None,
+        visible_only: bool = False,
     ) -> EngineResult:
         """Core internal extraction routine utilizing Playwright async API."""
         start_time = time.perf_counter()
@@ -147,7 +170,7 @@ class PlaywrightEngine:
 
         # Fast path: If rendering is disabled and HTML is supplied, parse statically
         if not render_js and html and html.strip():
-            self._parse_static_html(html, url, result)
+            self._parse_static_html(html, url, result, visible_only=visible_only)
             result.latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
             result.browser_used = False
             return result
@@ -194,6 +217,26 @@ class PlaywrightEngine:
 
                 page = await context.new_page()
 
+                # SSRF guard: Intercept all browser requests and redirects
+                from app.core.security import validate_url_safety
+
+                async def _ssrf_route_handler(route):
+                    try:
+                        req_url = route.request.url
+                        if req_url.startswith(("data:", "about:", "blob:")):
+                            await route.continue_()
+                            return
+                        is_safe, reason = validate_url_safety(req_url)
+                        if not is_safe:
+                            logger.warning("Playwright blocked SSRF destination: %s (%s)", req_url, reason)
+                            await route.abort("blockedbyclient")
+                        else:
+                            await route.continue_()
+                    except Exception:
+                        pass
+
+                await page.route("**/*", _ssrf_route_handler)
+
                 # 1. Navigate to target URL with fallback
                 response = None
                 try:
@@ -213,6 +256,20 @@ class PlaywrightEngine:
                 # 2. Wait for client-side hydration (React/Vue/vanilla SPA mount)
                 hydration_ms = int(effective_delay * 1000) if effective_delay > 0 else 1800
                 await page.wait_for_timeout(hydration_ms)
+
+                # Check for interstitial challenge or waiting screen (e.g. ArvanCloud/Cloudflare)
+                from app.services.loading_detector import is_interstitial_or_challenge
+                try:
+                    current_html = await page.content()
+                    if is_interstitial_or_challenge(html=current_html):
+                        logger.info("Detected interstitial waiting challenge on %s. Waiting for challenge resolution and reload...", url)
+                        await page.wait_for_timeout(3500)
+                        try:
+                            await page.wait_for_load_state("domcontentloaded", timeout=12000)
+                        except Exception:
+                            pass
+                except Exception as ch_err:
+                    logger.debug("Challenge detection error on %s: %s", url, ch_err)
 
                 # Non-blocking networkidle wait: give pending requests up to 3s to settle without blocking
                 try:
@@ -257,9 +314,43 @@ class PlaywrightEngine:
                     logger.debug("Auto-scroll evaluation error on %s: %s", url, scroll_err)
 
                 # 6. Extract DOM and metadata
+                if visible_only:
+                    try:
+                        await page.evaluate("""() => {
+                            const all = Array.from(document.querySelectorAll('*'));
+                            for (const el of all) {
+                                if (!el.parentNode || el === document.body || el === document.documentElement || el.tagName === 'HEAD') {
+                                    continue;
+                                }
+                                const style = window.getComputedStyle(el);
+                                const isHiddenStyle = style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0';
+                                const isAriaHidden = el.getAttribute('aria-hidden') === 'true';
+                                const isHiddenAttr = el.hasAttribute('hidden');
+                                const isInactiveTab = (el.classList.contains('tab-pane') && !el.classList.contains('active')) ||
+                                                      (el.classList.contains('tab-content') && el.classList.contains('fade') && !el.classList.contains('show'));
+
+                                if (isHiddenStyle || isAriaHidden || isHiddenAttr || isInactiveTab) {
+                                    el.remove();
+                                }
+                            }
+                        }""")
+                    except Exception as vis_err:
+                        logger.debug("Visible-only DOM pruning error on %s: %s", url, vis_err)
+
                 title = await page.title()
                 rendered_html = await page.content()
                 final_page_url = page.url or url
+
+                # Extract cookies from browser context
+                try:
+                    all_cookies = await context.cookies()
+                    result.cookies = {
+                        c["name"]: c["value"]
+                        for c in all_cookies
+                        if isinstance(c, dict) and "name" in c and "value" in c
+                    }
+                except Exception as ck_err:
+                    logger.debug("Could not read cookies from context: %s", ck_err)
 
                 self._parse_rendered_dom(
                     html=rendered_html,
@@ -267,6 +358,7 @@ class PlaywrightEngine:
                     title=title,
                     http_status=http_status,
                     result=result,
+                    visible_only=visible_only,
                 )
 
                 # 7. Check if extracted content is sparse or a loading screen; retry with adaptive wait
@@ -277,6 +369,20 @@ class PlaywrightEngine:
                         await page.evaluate(get_loader_remover_js())
                     except Exception:
                         pass
+                    if visible_only:
+                        try:
+                            await page.evaluate("""() => {
+                                const all = Array.from(document.querySelectorAll('*'));
+                                for (const el of all) {
+                                    if (!el.parentNode || el === document.body || el === document.documentElement || el.tagName === 'HEAD') continue;
+                                    const style = window.getComputedStyle(el);
+                                    if (style.display === 'none' || style.visibility === 'hidden' || el.getAttribute('aria-hidden') === 'true' || el.hasAttribute('hidden')) {
+                                        el.remove();
+                                    }
+                                }
+                            }""")
+                        except Exception:
+                            pass
                     new_html = await page.content()
                     new_title = await page.title()
                     candidate = EngineResult(engine=self.ENGINE_NAME, success=False)
@@ -286,12 +392,25 @@ class PlaywrightEngine:
                         title=new_title,
                         http_status=http_status,
                         result=candidate,
+                        visible_only=visible_only,
                     )
+                    candidate.cookies = dict(result.cookies)
                     if candidate.has_content and not is_loading_text(candidate.text, title=candidate.title):
                         candidate.warnings.append("محتوای پویا پس از عبور خودکار از صفحه لودینگ اولیه با Playwright استخراج شد.")
                         result = candidate
                     elif (candidate.char_count or 0) > (result.char_count or 0):
                         result = candidate
+
+                # Refresh cookies before context closes
+                try:
+                    all_cookies = await context.cookies()
+                    result.cookies = {
+                        c["name"]: c["value"]
+                        for c in all_cookies
+                        if isinstance(c, dict) and "name" in c and "value" in c
+                    }
+                except Exception:
+                    pass
 
                 result.browser_used = True
 
@@ -308,6 +427,7 @@ class PlaywrightEngine:
                     render_js,
                     loading_delay,
                     wait_for_selector,
+                    visible_only,
                 )
             result.error = f"Subprocess not implemented: {str(nie)}"
             result.success = False
@@ -321,12 +441,12 @@ class PlaywrightEngine:
         result.latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
         return result
 
-    def _parse_static_html(self, html: str, url: str, result: EngineResult) -> None:
+    def _parse_static_html(self, html: str, url: str, result: EngineResult, visible_only: bool = False) -> None:
         """Parse raw HTML without launching a browser."""
         soup = BeautifulSoup(html, "html.parser")
         title_tag = soup.find("title")
         title = title_tag.get_text(strip=True) if title_tag else None
-        self._parse_rendered_dom(html=html, url=url, title=title, http_status=200, result=result)
+        self._parse_rendered_dom(html=html, url=url, title=title, http_status=200, result=result, visible_only=visible_only)
 
     def _parse_rendered_dom(
         self,
@@ -335,6 +455,7 @@ class PlaywrightEngine:
         title: Optional[str],
         http_status: int,
         result: EngineResult,
+        visible_only: bool = False,
     ) -> None:
         """Parse rendered HTML string into structured markdown, headings, links, and metadata."""
         soup = BeautifulSoup(html, "html.parser")
@@ -407,6 +528,20 @@ class PlaywrightEngine:
         for tag in soup.find_all(["script", "style", "noscript", "svg", "canvas", "iframe", "link"]):
             tag.decompose()
 
+        # Prune hidden elements if visible_only is enabled
+        if visible_only:
+            for tag in soup.find_all(attrs={"aria-hidden": "true"}):
+                tag.decompose()
+            for tag in soup.find_all(attrs={"hidden": True}):
+                tag.decompose()
+            for tag in soup.find_all(style=re.compile(r"display\s*:\s*none|visibility\s*:\s*hidden", re.I)):
+                tag.decompose()
+            for tag in list(soup.find_all(True)):
+                classes = tag.get("class", [])
+                classes_str = " ".join(classes) if isinstance(classes, list) else str(classes)
+                if "tab-pane" in classes_str and "active" not in classes_str:
+                    tag.decompose()
+
         # Generate Structured Markdown
         markdown_content = self._dom_to_markdown(soup)
         clean_markdown = re.sub(r"[ \t]+", " ", markdown_content)
@@ -418,6 +553,10 @@ class PlaywrightEngine:
         clean_text = re.sub(r"\n{3,}", "\n\n", clean_text).strip()
 
         # Populate result fields
+        result.raw_html = html
+        result.url = url
+        result.status_code = http_status
+        meta_dict["raw_html"] = html
         result.title = title or (headings[0].text if headings else None)
         result.description = description
         result.canonical_url = canonical_url

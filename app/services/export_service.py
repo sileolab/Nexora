@@ -35,11 +35,50 @@ class ExportService:
         self.output_dir: Path = Path(base_dir).resolve()
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
+    def _filter_documents(
+        self,
+        documents: list[ExtractedDocument],
+        deduplicate: bool = False,
+        category: Optional[str] = None,
+    ) -> list[ExtractedDocument]:
+        """Filter documents by category and optionally eliminate duplicates."""
+        filtered = documents
+        if category:
+            c_low = category.strip().lower()
+            filtered = [d for d in filtered if d.category and d.category.lower() == c_low]
+
+        if not deduplicate:
+            return filtered
+
+        unique_docs: list[ExtractedDocument] = []
+        seen_hashes: set[str] = set()
+
+        for doc in filtered:
+            status_val = getattr(doc.quality_status, "value", str(doc.quality_status))
+            if status_val.lower() == "duplicate":
+                continue
+
+            h = doc.content_hash
+            if not h:
+                body = (doc.content_markdown or doc.content_text or "").strip()
+                if body:
+                    h = hashlib.sha256(body.encode("utf-8")).hexdigest()
+                else:
+                    h = hashlib.sha256(doc.url.encode("utf-8")).hexdigest()
+
+            if h in seen_hashes:
+                continue
+            seen_hashes.add(h)
+            unique_docs.append(doc)
+
+        return unique_docs
+
     def export_json(
         self,
         documents: list[ExtractedDocument],
         job_id: str,
         category: Optional[str] = None,
+        deduplicate: bool = False,
     ) -> Path:
         """Export documents as a single JSON array file.
 
@@ -47,10 +86,12 @@ class ExportService:
             documents: List of ExtractedDocument models to serialize.
             job_id: Crawl job identifier used for directory scoping.
             category: Optional classification category for filename differentiation.
+            deduplicate: If True, duplicate documents are omitted from the export.
 
         Returns:
             Path to the written JSON file.
         """
+        filtered_docs = self._filter_documents(documents, deduplicate=deduplicate, category=category)
         filename = (
             f"documents_{sanitize_filename(category)}.json"
             if category
@@ -58,12 +99,12 @@ class ExportService:
         )
         out_path = self._get_output_path(job_id, filename)
 
-        serialized_data = [doc.model_dump(mode="json") for doc in documents]
+        serialized_data = [doc.model_dump(mode="json") for doc in filtered_docs]
 
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(serialized_data, f, ensure_ascii=False, indent=2)
 
-        logger.info("Exported %d documents to JSON: %s", len(documents), out_path)
+        logger.info("Exported %d documents to JSON: %s", len(filtered_docs), out_path)
         return out_path
 
     def export_jsonl(
@@ -71,6 +112,7 @@ class ExportService:
         documents: list[ExtractedDocument],
         job_id: str,
         category: Optional[str] = None,
+        deduplicate: bool = False,
     ) -> Path:
         """Export documents as JSONL (one serialized JSON object per line).
 
@@ -78,10 +120,12 @@ class ExportService:
             documents: List of ExtractedDocument models to serialize.
             job_id: Crawl job identifier used for directory scoping.
             category: Optional classification category for filename differentiation.
+            deduplicate: If True, duplicate documents are omitted from the export.
 
         Returns:
             Path to the written JSONL file.
         """
+        filtered_docs = self._filter_documents(documents, deduplicate=deduplicate, category=category)
         filename = (
             f"documents_{sanitize_filename(category)}.jsonl"
             if category
@@ -90,11 +134,11 @@ class ExportService:
         out_path = self._get_output_path(job_id, filename)
 
         with open(out_path, "w", encoding="utf-8") as f:
-            for doc in documents:
+            for doc in filtered_docs:
                 line = json.dumps(doc.model_dump(mode="json"), ensure_ascii=False)
                 f.write(line + "\n")
 
-        logger.info("Exported %d documents to JSONL: %s", len(documents), out_path)
+        logger.info("Exported %d documents to JSONL: %s", len(filtered_docs), out_path)
         return out_path
 
     def export_markdown(
@@ -102,6 +146,7 @@ class ExportService:
         documents: list[ExtractedDocument],
         job_id: str,
         category: Optional[str] = None,
+        deduplicate: bool = False,
     ) -> Path:
         """Export each document as a separate markdown file with YAML frontmatter in a folder.
 
@@ -109,10 +154,12 @@ class ExportService:
             documents: List of ExtractedDocument models to serialize.
             job_id: Crawl job identifier used for directory scoping.
             category: Optional category name used for folder naming.
+            deduplicate: If True, duplicate documents are omitted from the export.
 
         Returns:
             Path to the folder containing the exported markdown files.
         """
+        filtered_docs = self._filter_documents(documents, deduplicate=deduplicate, category=category)
         safe_job_id = sanitize_filename(job_id)
         folder_name = (
             f"markdown_{sanitize_filename(category)}" if category else "markdown"
@@ -120,7 +167,7 @@ class ExportService:
         folder_path = (self.output_dir / safe_job_id / folder_name).resolve()
         folder_path.mkdir(parents=True, exist_ok=True)
 
-        for doc in documents:
+        for doc in filtered_docs:
             filename = f"{self._make_filename_from_url(doc.url)}.md"
             file_path = folder_path / filename
 
@@ -132,7 +179,7 @@ class ExportService:
                 f.write(full_content)
 
         logger.info(
-            "Exported %d markdown files to directory: %s", len(documents), folder_path
+            "Exported %d markdown files to directory: %s", len(filtered_docs), folder_path
         )
         return folder_path
 
@@ -141,6 +188,7 @@ class ExportService:
         documents: list[ExtractedDocument],
         job_id: str,
         category: Optional[str] = None,
+        deduplicate: bool = False,
     ) -> Path:
         """Export documents as individual plain text files in a dedicated folder.
 
@@ -148,16 +196,18 @@ class ExportService:
             documents: List of ExtractedDocument models to serialize.
             job_id: Crawl job identifier used for directory scoping.
             category: Optional category name used for folder naming.
+            deduplicate: If True, duplicate documents are omitted from the export.
 
         Returns:
             Path to the folder containing the exported text files.
         """
+        filtered_docs = self._filter_documents(documents, deduplicate=deduplicate, category=category)
         safe_job_id = sanitize_filename(job_id)
         folder_name = f"text_{sanitize_filename(category)}" if category else "text"
         folder_path = (self.output_dir / safe_job_id / folder_name).resolve()
         folder_path.mkdir(parents=True, exist_ok=True)
 
-        for doc in documents:
+        for doc in filtered_docs:
             filename = f"{self._make_filename_from_url(doc.url)}.txt"
             file_path = folder_path / filename
 
@@ -175,7 +225,7 @@ class ExportService:
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(full_content)
 
-        logger.info("Exported %d text files to directory: %s", len(documents), folder_path)
+        logger.info("Exported %d text files to directory: %s", len(filtered_docs), folder_path)
         return folder_path
 
     def _get_output_path(self, job_id: str, filename: str) -> Path:

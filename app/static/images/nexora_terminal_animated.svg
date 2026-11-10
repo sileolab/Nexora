@@ -1,0 +1,158 @@
+<svg fill="none" viewBox="0 0 900 480" width="100%" xmlns="http://www.w3.org/2000/svg">
+  <foreignObject width="100%" height="100%">
+    <div xmlns="http://www.w3.org/1999/xhtml">
+      <style>
+        .terminal-box {
+          background-color: #0b101b;
+          border: 1px solid rgba(56, 189, 248, 0.25);
+          border-radius: 12px;
+          box-shadow: 0 25px 60px rgba(0, 0, 0, 0.75);
+          font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+          color: #e2e8f0;
+          font-size: 13.5px;
+          line-height: 1.6;
+          padding: 16px 20px;
+          box-sizing: border-box;
+          height: 480px;
+          overflow: hidden;
+        }
+        .term-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding-bottom: 12px;
+          border-bottom: 1px solid #1e293b;
+          margin-bottom: 14px;
+        }
+        .window-dots {
+          display: flex;
+          gap: 7px;
+        }
+        .dot {
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+        }
+        .dot-red { background: #ef4444; }
+        .dot-yellow { background: #f59e0b; }
+        .dot-green { background: #10b981; }
+        .term-title {
+          font-size: 12px;
+          color: #64748b;
+          font-weight: 600;
+          letter-spacing: 0.05em;
+        }
+        
+        .code-line {
+          margin: 4px 0;
+          display: flex;
+          align-items: center;
+          white-space: pre;
+        }
+        .prompt-symbol {
+          color: #06b6d4;
+          font-weight: 700;
+          margin-right: 8px;
+        }
+        .cmd-text {
+          color: #38bdf8;
+          font-weight: 600;
+        }
+        .flag {
+          color: #a78bfa;
+        }
+        .param {
+          color: #fde047;
+        }
+        .log-info { color: #3b82f6; }
+        .log-success { color: #10b981; }
+        .log-warn { color: #f59e0b; }
+        .log-dim { color: #64748b; }
+
+        /* Animation timeline */
+        .step-1 { animation: fadeIn 0.4s 0.2s both; }
+        .step-2 { animation: fadeIn 0.4s 1.2s both; }
+        .step-3 { animation: fadeIn 0.4s 2.2s both; }
+        .step-4 { animation: fadeIn 0.4s 3.2s both; }
+        .step-5 { animation: fadeIn 0.4s 4.2s both; }
+        .step-6 { animation: fadeIn 0.4s 5.2s both; }
+        .step-7 { animation: fadeIn 0.4s 6.2s both; }
+        .step-8 { animation: fadeIn 0.4s 7.2s both; }
+
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        .cursor {
+          display: inline-block;
+          width: 8px;
+          height: 16px;
+          background: #38bdf8;
+          margin-left: 4px;
+          animation: blink 1s infinite;
+          vertical-align: middle;
+        }
+        @keyframes blink {
+          0%, 50% { opacity: 1; }
+          51%, 100% { opacity: 0; }
+        }
+
+        .progress-bar {
+          display: inline-block;
+          color: #10b981;
+          letter-spacing: -1px;
+        }
+      </style>
+      <div class="terminal-box">
+        <div class="term-header">
+          <div class="window-dots">
+            <div class="dot dot-red"></div>
+            <div class="dot dot-yellow"></div>
+            <div class="dot dot-green"></div>
+          </div>
+          <div class="term-title">bash — nexora-cli — 80×24</div>
+          <div style="font-size:11px; color:#475569;">Nexora v5.0.0</div>
+        </div>
+
+        <div class="code-line step-1">
+          <span class="prompt-symbol">❯</span>
+          <span class="cmd-text">nexora crawl</span> <span class="flag">--url</span> <span class="param">https://docs.enterprise.com</span> <span class="flag">--engine</span> <span class="param">auto</span> <span class="flag">--chunk</span>
+        </div>
+
+        <div class="code-line step-2">
+          <span class="log-dim">[15:20:01]</span> <span class="log-info">INFO</span>  Robots.txt &amp; Sitemap discovered: 142 valid target URLs
+        </div>
+
+        <div class="code-line step-3">
+          <span class="log-dim">[15:20:02]</span> <span class="log-info">AUTO</span>  Engine Router: Selected <span class="cmd-text">Playwright Chromium Headless</span> (SPA routes detected)
+        </div>
+
+        <div class="code-line step-4">
+          <span class="log-dim">[15:20:04]</span> <span class="log-success">EXTR</span>  Extracting DOM &amp; dynamic hydration: <span class="progress-bar">████████████████████</span> 100% [142/142]
+        </div>
+
+        <div class="code-line step-5">
+          <span class="log-dim">[15:20:06]</span> <span class="log-info">RAG </span>  Applying Persian/Unicode normalization &amp; Semantic sentence chunking...
+        </div>
+
+        <div class="code-line step-6">
+          <span class="log-dim">[15:20:07]</span> <span class="log-success">VECT</span>  Upserted <span style="color:#fde047; font-weight:700;">846 chunks</span> into In-Memory Hybrid Store (Dense + BM25 RRF)
+        </div>
+
+        <div class="code-line step-7" style="margin-top:10px;">
+          <span class="prompt-symbol">❯</span>
+          <span class="cmd-text">nexora eval run</span> <span class="flag">--dataset</span> <span class="param">rag_prod_v1</span> <span class="flag">--top-k</span> <span class="param">5</span>
+        </div>
+
+        <div class="code-line step-8">
+          <span class="log-dim">[15:20:09]</span> <span class="log-success">EVAL</span>  IR Benchmarks: <span style="color:#10b981; font-weight:700;">Recall@5: 96.4%</span> | <span style="color:#38bdf8; font-weight:700;">MRR: 0.892</span> | <span style="color:#c084fc; font-weight:700;">nDCG@5: 0.941</span>
+        </div>
+
+        <div class="code-line step-8" style="margin-top:12px;">
+          <span class="prompt-symbol">❯</span> <span class="cursor"></span>
+        </div>
+      </div>
+    </div>
+  </foreignObject>
+</svg>

@@ -13,6 +13,7 @@ import re
 from typing import Optional
 
 from ..schemas.documents import ExtractedDocument, QualityReport, QualityStatus
+from .loading_detector import is_loading_text
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +71,19 @@ class QualityChecker:
             report.passed = False
             return document
 
-        # 3. Check for duplicate content
+        # 3. Check for loading / preloader screens (prevent false success)
+        raw_text = (document.content_text or document.content_markdown or "").strip()
+        if is_loading_text(raw_text, title=document.title):
+            document.quality_status = QualityStatus.LOW_QUALITY
+            warning = "Loading or skeleton preloader screen detected; content not fully hydrated"
+            if warning not in document.warnings:
+                document.warnings.append(warning)
+            report.passed = False
+            if "Loading/Preloader screen detected" not in report.reasons:
+                report.reasons.append("Loading/Preloader screen detected")
+            return document
+
+        # 4. Check for duplicate content
         is_dup, original_url = self.is_duplicate(document)
         if is_dup:
             document.quality_status = QualityStatus.DUPLICATE
@@ -88,7 +101,7 @@ class QualityChecker:
         if doc_hash:
             self._content_hashes[doc_hash] = str(document.url)
 
-        # 4. Check for low quality (sparse text / below threshold or score < min_quality_score)
+        # 5. Check for low quality (sparse text / below threshold or score < min_quality_score)
         if self.is_low_quality(document) or report.score < self.min_quality_score:
             document.quality_status = QualityStatus.LOW_QUALITY
             warning = (
@@ -139,12 +152,21 @@ class QualityChecker:
         score = 0
 
         # A. Word count score (max 30 points)
+        is_short_high_value = self._is_short_high_value(document, content)
         if word_count < 15:
-            score += 0
-            reasons.append("Severe penalty: less than 15 words")
+            if is_short_high_value:
+                score += 15
+                reasons.append("Concise high-value structured content (contact/FAQ)")
+            else:
+                score += 0
+                reasons.append("Severe penalty: less than 15 words")
         elif word_count < 50:
-            score += 10
-            reasons.append("Low word count (under 50 words)")
+            if is_short_high_value:
+                score += 20
+                reasons.append("Concise high-value structured content (contact/FAQ)")
+            else:
+                score += 10
+                reasons.append("Low word count (under 50 words)")
         elif word_count < 150:
             score += 20
             reasons.append("Moderate word count (50-150 words)")
@@ -247,9 +269,24 @@ class QualityChecker:
 
         return False
 
+    def _is_short_high_value(self, document: ExtractedDocument, content: str) -> bool:
+        """Determine if short content represents high-value concise info (contact, FAQ, etc.)."""
+        page_type = (getattr(document, "page_type", "") or "").lower()
+        category = (getattr(document, "category", "") or "").lower()
+        has_contact_info = bool(re.search(r"(?:@[\w.-]+|[\w.+-]+@[\w-]+\.[\w.-]+|\+?\d{8,14}|t\.me/|09\d{9})", content))
+        return (
+            page_type in ("contact", "faq")
+            or category in ("contact", "faq")
+            or has_contact_info
+        ) and (document.word_count >= 5 and document.character_count >= 20)
+
     def is_low_quality(self, document: ExtractedDocument) -> bool:
         """Check if document content falls below minimum quality thresholds."""
         if self.is_empty(document):
+            return False
+
+        content = (document.content_text or document.content_markdown or "").strip()
+        if self._is_short_high_value(document, content):
             return False
 
         return (

@@ -51,7 +51,7 @@ from .page_classifier import (
     PAGE_TYPE_UNKNOWN,
     PageClassifier,
 )
-from .loading_detector import has_loading_dom, is_loading_text
+from .loading_detector import has_loading_dom, is_loading_text, is_interstitial_or_challenge
 from .quality_checker import QualityChecker
 from .url_normalizer import URLNormalizer
 
@@ -67,6 +67,8 @@ class ContentExtractor:
         client: Optional[httpx.AsyncClient] = None,
         min_quality_score: int = 40,
         render_mode: str = "auto",
+        tenant_id: Optional[str] = None,
+        job_id: Optional[str] = None,
     ) -> None:
         """Initialize the extraction coordinator.
 
@@ -75,11 +77,15 @@ class ContentExtractor:
             client: Optional shared httpx.AsyncClient for HTTP fetch operations.
             min_quality_score: Minimum quality score (0-100) before auto-fallback triggers.
             render_mode: Browser rendering mode ('auto', 'always', 'never').
+            tenant_id: Optional workspace/tenant ID for session and rate-limit isolation.
+            job_id: Optional background job identifier for telemetry scoping.
         """
         self.strategy: str = strategy.lower().strip()
         self.client: Optional[httpx.AsyncClient] = client
         self.min_quality_score: int = min_quality_score
         self.render_mode: str = render_mode.lower().strip()
+        self.tenant_id: Optional[str] = tenant_id
+        self.job_id: Optional[str] = job_id
 
         self.cleaner: ContentCleaner = ContentCleaner()
         self.normalizer: URLNormalizer = URLNormalizer()
@@ -101,6 +107,7 @@ class ContentExtractor:
         override_strategy: Optional[str] = None,
         loading_delay: float = 0.0,
         wait_for_selector: Optional[str] = None,
+        visible_only: bool = False,
     ) -> ExtractedDocument:
         """Execute extraction pipeline for a single URL using configured or auto strategy.
 
@@ -111,6 +118,7 @@ class ContentExtractor:
             override_strategy: Optional per-request extraction strategy override.
             loading_delay: Manual delay in seconds to wait for initial loading screens.
             wait_for_selector: Optional CSS/XPath selector to wait for before extraction.
+            visible_only: Extract only rendered, visible content (prunes hidden elements, inactive tabs).
 
         Returns:
             ExtractedDocument containing unified result, metadata, and quality report.
@@ -149,6 +157,7 @@ class ContentExtractor:
                 loading_delay=loading_delay,
                 wait_for_selector=wait_for_selector,
                 include_playwright=(active_strategy == "compare_all"),
+                visible_only=visible_only,
             )
 
         # 3. Handle pure browser modes directly if browser rendering is unconditionally forced
@@ -157,6 +166,7 @@ class ContentExtractor:
                 url=url,
                 loading_delay=loading_delay,
                 wait_for_selector=wait_for_selector,
+                visible_only=visible_only,
             )
 
         if active_strategy == "crawl4ai" and self.render_mode != "never":
@@ -166,17 +176,56 @@ class ContentExtractor:
                 wait_for_selector=wait_for_selector,
             )
 
-        # 4. Fetch page HTML safely via HTTP GET
-        fetch_res = await self._safe_fetch_html(url=url, timeout=timeout)
-        if fetch_res.get("failed"):
-            # If standard HTTP fetch failed and strategy was playwright, crawl4ai or auto, try browser fallback
-            if active_strategy in ("playwright", "crawl4ai", "auto"):
-                logger.info("HTTP fetch failed for %s, attempting browser fallback", url)
+        # 4. Fetch page HTML safely via AntiBotManager
+        fetch_res = await self._safe_fetch_html(url=url, timeout=timeout, tenant_id=self.tenant_id)
+        diag = fetch_res.get("diagnostics")
+        diag_classification = getattr(diag, "classification", None)
+        class_val = getattr(diag_classification, "value", str(diag_classification or ""))
+
+        # Security Constraint (Section 8):
+        # Retrying with browser must NOT be used to bypass CAPTCHA, bot protection, or access controls.
+        is_security_block = class_val in ("BOT_PROTECTION", "CAPTCHA_REQUIRED", "HTTP_FORBIDDEN", "AUTH_REQUIRED")
+        if is_security_block:
+            logger.warning(
+                "Browser fallback prohibited for %s due to security classification: %s "
+                "(Browser rendering cannot be used to bypass CAPTCHA, bot challenges, or access control)",
+                url,
+                class_val,
+            )
+            return ExtractedDocument(
+                url=url,
+                source_url=url,
+                final_url=fetch_res.get("final_url", url),
+                http_status=fetch_res.get("status_code", 403),
+                fetched_at=fetch_res.get("fetched_at"),
+                extraction_method=active_strategy,
+                extractor_used=active_strategy,
+                quality_status=QualityStatus.BLOCKED,
+                warnings=[f"Blocked by site security: {class_val} (browser evasion prohibited)"],
+                quality_report=QualityReport(
+                    score=0,
+                    passed=False,
+                    reasons=[f"Site security blocked request: {class_val}"],
+                ),
+            )
+
+        if class_val == "JS_RENDER_REQUIRED" or (fetch_res.get("failed") and self.render_mode == "always"):
+            # If standard HTTP fetch indicated JS rendering required, try browser fallback
+            if active_strategy in ("playwright", "crawl4ai", "auto") and self.render_mode != "never":
+                logger.info(
+                    "HTTP fetch indicated browser rendering for %s (reason: %s), attempting browser fallback",
+                    url,
+                    getattr(diag, "reason", "fetch failed"),
+                )
+                from app.services.anti_bot import get_antibot_manager
+                get_antibot_manager().record_browser_fallback(job_id=self.job_id)
+
                 if active_strategy == "playwright":
                     return await self._extract_via_playwright_direct(
                         url=url,
                         loading_delay=loading_delay,
                         wait_for_selector=wait_for_selector,
+                        visible_only=visible_only,
                     )
                 return await self._extract_via_crawl4ai_direct(
                     url=url,
@@ -184,22 +233,23 @@ class ContentExtractor:
                     wait_for_selector=wait_for_selector,
                 )
 
-            return ExtractedDocument(
-                url=url,
-                source_url=url,
-                final_url=fetch_res.get("final_url", url),
-                http_status=fetch_res.get("status_code"),
-                fetched_at=fetch_res.get("fetched_at"),
-                extraction_method=active_strategy,
-                extractor_used=active_strategy,
-                quality_status=QualityStatus.FAILED,
-                warnings=[fetch_res.get("error", "Fetch failed")],
-                quality_report=QualityReport(
-                    score=0,
-                    passed=False,
-                    reasons=[fetch_res.get("error", "Fetch failed")],
-                ),
-            )
+            if fetch_res.get("failed"):
+                return ExtractedDocument(
+                    url=url,
+                    source_url=url,
+                    final_url=fetch_res.get("final_url", url),
+                    http_status=fetch_res.get("status_code"),
+                    fetched_at=fetch_res.get("fetched_at"),
+                    extraction_method=active_strategy,
+                    extractor_used=active_strategy,
+                    quality_status=QualityStatus.FAILED,
+                    warnings=[fetch_res.get("error", "Fetch failed")],
+                    quality_report=QualityReport(
+                        score=0,
+                        passed=False,
+                        reasons=[fetch_res.get("error", "Fetch failed")],
+                    ),
+                )
 
         html: str = fetch_res["html"]
         final_url: str = fetch_res["final_url"]
@@ -231,8 +281,35 @@ class ContentExtractor:
             best_result = res
             best_score = score
 
+            # If static engine captured an interstitial challenge, auto-promote to Playwright
+            if self.render_mode != "never" and is_interstitial_or_challenge(html=html, text=res.text):
+                logger.info("Trafilatura encountered an interstitial challenge for %s. Auto-promoting to Playwright...", final_url)
+                res_browser = await self.playwright_engine.extract(
+                    final_url,
+                    html=html,
+                    render_js=True,
+                    loading_delay=loading_delay,
+                    wait_for_selector=wait_for_selector,
+                )
+                score_browser = self._score_engine_result(res_browser, html)
+                attempts.append(
+                    ExtractionAttempt(
+                        engine="playwright",
+                        status="success" if res_browser.success else "failed",
+                        latency_ms=res_browser.latency_ms,
+                        char_count=res_browser.char_count,
+                        word_count=res_browser.word_count,
+                        quality_score=score_browser,
+                        reason="Bypassed challenge via Playwright",
+                        error=res_browser.error,
+                    )
+                )
+                if score_browser > best_score:
+                    best_result = res_browser
+                    best_score = score_browser
+
             # If static engine captured only a loading screen, auto-promote to Crawl4AI
-            if self.render_mode != "never" and (
+            elif self.render_mode != "never" and (
                 is_loading_text(res.text, title=res.title)
                 or (not res.has_content and has_loading_dom(html))
             ):
@@ -278,8 +355,35 @@ class ContentExtractor:
             best_result = res
             best_score = score
 
+            # If static engine captured an interstitial challenge, auto-promote to Playwright
+            if self.render_mode != "never" and is_interstitial_or_challenge(html=html, text=res.text):
+                logger.info("BeautifulSoup encountered an interstitial challenge for %s. Auto-promoting to Playwright...", final_url)
+                res_browser = await self.playwright_engine.extract(
+                    final_url,
+                    html=html,
+                    render_js=True,
+                    loading_delay=loading_delay,
+                    wait_for_selector=wait_for_selector,
+                )
+                score_browser = self._score_engine_result(res_browser, html)
+                attempts.append(
+                    ExtractionAttempt(
+                        engine="playwright",
+                        status="success" if res_browser.success else "failed",
+                        latency_ms=res_browser.latency_ms,
+                        char_count=res_browser.char_count,
+                        word_count=res_browser.word_count,
+                        quality_score=score_browser,
+                        reason="Bypassed challenge via Playwright",
+                        error=res_browser.error,
+                    )
+                )
+                if score_browser > best_score:
+                    best_result = res_browser
+                    best_score = score_browser
+
             # If static engine captured only a loading screen, auto-promote to Crawl4AI
-            if self.render_mode != "never" and (
+            elif self.render_mode != "never" and (
                 is_loading_text(res.text, title=res.title)
                 or (not res.has_content and has_loading_dom(html))
             ):
@@ -338,6 +442,7 @@ class ContentExtractor:
                 render_js=True,
                 loading_delay=loading_delay,
                 wait_for_selector=wait_for_selector,
+                visible_only=visible_only,
             )
             score = self._score_engine_result(res, html)
             att = ExtractionAttempt(
@@ -362,6 +467,7 @@ class ContentExtractor:
                 page_type=page_type,
                 loading_delay=loading_delay,
                 wait_for_selector=wait_for_selector,
+                visible_only=visible_only,
             )
 
         # 7. Construct final ExtractedDocument
@@ -395,12 +501,15 @@ class ContentExtractor:
         page_type: str,
         loading_delay: float = 0.0,
         wait_for_selector: Optional[str] = None,
+        visible_only: bool = False,
     ) -> tuple[EngineResult, int, list[ExtractionAttempt]]:
         """Execute Auto Mode: selects primary engine and manages controlled fallbacks."""
         attempts: list[ExtractionAttempt] = []
 
         # Step A: Choose primary engine based on page type classification or loader detection
-        if page_type in (PAGE_TYPE_SPA, PAGE_TYPE_DASHBOARD) or has_loading_dom(html):
+        if is_interstitial_or_challenge(html=html):
+            primary_engine_name = "playwright"
+        elif page_type in (PAGE_TYPE_SPA, PAGE_TYPE_DASHBOARD) or has_loading_dom(html):
             primary_engine_name = "crawl4ai"
         elif page_type in (PAGE_TYPE_PRODUCT, PAGE_TYPE_FAQ):
             primary_engine_name = "beautifulsoup"
@@ -414,6 +523,7 @@ class ContentExtractor:
             html,
             loading_delay=loading_delay,
             wait_for_selector=wait_for_selector,
+            visible_only=visible_only,
         )
         primary_score = self._score_engine_result(primary_result, html)
 
@@ -453,6 +563,7 @@ class ContentExtractor:
             "root" in html[:2000]
             or ("<script" in html.lower() and len(primary_result.text or "") < 100)
             or is_loading_text(primary_result.text, title=primary_result.title)
+            or is_interstitial_or_challenge(html=html, text=primary_result.text)
             or has_loading_dom(html)
         ):
             if "playwright" in fallback_order:
@@ -463,12 +574,17 @@ class ContentExtractor:
                 fallback_order.insert(0, "crawl4ai")
 
         for fb_engine in fallback_order:
+            if fb_engine in ("playwright", "crawl4ai"):
+                from app.services.anti_bot import get_antibot_manager
+                get_antibot_manager().record_browser_fallback(job_id=self.job_id)
+
             fb_result = await self._run_single_engine(
                 fb_engine,
                 url,
                 html,
                 loading_delay=loading_delay,
                 wait_for_selector=wait_for_selector,
+                visible_only=visible_only,
             )
             fb_score = self._score_engine_result(fb_result, html)
 
@@ -503,6 +619,7 @@ class ContentExtractor:
         loading_delay: float = 0.0,
         wait_for_selector: Optional[str] = None,
         include_playwright: bool = False,
+        visible_only: bool = False,
     ) -> ExtractedDocument:
         """Run all three (or four) engines on the same page and produce a side-by-side comparison report."""
         start_time = time.perf_counter()
@@ -585,6 +702,7 @@ class ContentExtractor:
                 render_js=True,
                 loading_delay=loading_delay,
                 wait_for_selector=wait_for_selector,
+                visible_only=visible_only,
             )
             score_pw = self._score_engine_result(res_pw, html)
             results["playwright"] = res_pw
@@ -642,6 +760,7 @@ class ContentExtractor:
         html: str,
         loading_delay: float = 0.0,
         wait_for_selector: Optional[str] = None,
+        visible_only: bool = False,
     ) -> EngineResult:
         """Execute a specific engine safely and return its EngineResult."""
         if engine_name == "trafilatura":
@@ -663,6 +782,7 @@ class ContentExtractor:
                 render_js=True,
                 loading_delay=loading_delay,
                 wait_for_selector=wait_for_selector,
+                visible_only=visible_only,
             )
         else:
             return EngineResult(
@@ -676,6 +796,7 @@ class ContentExtractor:
         url: str,
         loading_delay: float = 0.0,
         wait_for_selector: Optional[str] = None,
+        visible_only: bool = False,
     ) -> ExtractedDocument:
         """Direct extraction via Playwright Chromium browser without preliminary httpx fetch."""
         start_time = time.perf_counter()
@@ -684,6 +805,7 @@ class ContentExtractor:
             render_js=True,
             loading_delay=loading_delay,
             wait_for_selector=wait_for_selector,
+            visible_only=visible_only,
         )
         score = self._score_engine_result(res, raw_html="")
 
@@ -718,8 +840,9 @@ class ContentExtractor:
         if not res.has_content:
             return 0
 
-        # Check if the extracted content is merely a loading indicator or splash screen
-        if is_loading_text(res.text, title=res.title):
+        # Check if the extracted content is merely a loading indicator or challenge splash screen
+        effective_html = getattr(res, "raw_html", None) or (res.metadata.get("raw_html") if res.metadata else None) or raw_html
+        if is_loading_text(res.text, title=res.title) or is_interstitial_or_challenge(html=effective_html, text=res.text):
             res.warnings.append("محتوای استخراج‌شده به عنوان پیام یا صفحه لودینگ اولیه تشخیص داده شد.")
             return 0
 
@@ -733,7 +856,7 @@ class ContentExtractor:
             title=res.title,
             metadata=res.metadata,
         )
-        report = self.quality_checker.evaluate(temp_doc, raw_html=raw_html)
+        report = self.quality_checker.evaluate(temp_doc, raw_html=effective_html)
         return report.score
 
     def _build_document(
@@ -773,30 +896,31 @@ class ContentExtractor:
         char_count = len(cleaned_text) if cleaned_text else 0
 
         # Extract headings & links if missing from engine_result
+        effective_raw_html = getattr(engine_result, "raw_html", None) or raw_html
         headings = engine_result.headings
-        if not headings and raw_html:
-            headings = self._extract_headings(raw_html)
+        if not headings and effective_raw_html:
+            headings = self._extract_headings(effective_raw_html)
 
         links = engine_result.links
-        if not links and raw_html:
+        if not links and effective_raw_html:
             base_domain = self.normalizer.extract_domain(final_url)
-            links = self._extract_links(raw_html, final_url, base_domain)
+            links = self._extract_links(effective_raw_html, final_url, base_domain)
 
         title = engine_result.title
-        if not title and raw_html:
-            title = self.link_discovery.extract_title(raw_html)
+        if not title and effective_raw_html:
+            title = self.link_discovery.extract_title(effective_raw_html)
 
         description = engine_result.description
-        if not description and raw_html:
-            description = self.link_discovery.extract_meta_description(raw_html)
+        if not description and effective_raw_html:
+            description = self.link_discovery.extract_meta_description(effective_raw_html)
 
         canonical = engine_result.canonical_url
-        if not canonical and raw_html:
-            canonical = self.link_discovery.extract_canonical_url(raw_html)
+        if not canonical and effective_raw_html:
+            canonical = self.link_discovery.extract_canonical_url(effective_raw_html)
 
         language = engine_result.language
-        if not language and raw_html:
-            language = self.link_discovery.extract_language(raw_html)
+        if not language and effective_raw_html:
+            language = self.link_discovery.extract_language(effective_raw_html)
 
         all_warnings = list(engine_result.warnings)
         if engine_result.error and engine_result.error not in all_warnings:
@@ -830,7 +954,7 @@ class ContentExtractor:
         )
 
         # Calculate QualityReport
-        report = self.quality_checker.evaluate(doc, raw_html=raw_html)
+        report = self.quality_checker.evaluate(doc, raw_html=effective_raw_html)
         doc.quality_report = report
         return doc
 
@@ -876,104 +1000,50 @@ class ContentExtractor:
         )
         return self.quality_checker.check(doc)
 
-    async def _safe_fetch_html(self, url: str, timeout: float = 30.0) -> dict[str, Any]:
-        """Fetch page content with manual redirect following and SSRF validation."""
+    async def _safe_fetch_html(
+        self,
+        url: str,
+        timeout: float = 30.0,
+        tenant_id: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """Fetch page content with AntiBotManager resilience, connection pooling and SSRF validation."""
         fetched_at = datetime.now(timezone.utc)
-        current_url: str = url
-        redirect_count: int = 0
-        max_redirects: int = 5
-        visited_set: set[str] = {current_url}
-
-        client_to_use = self.client
-        own_client: Optional[httpx.AsyncClient] = None
-        if client_to_use is None:
-            own_client = httpx.AsyncClient(
-                timeout=timeout,
-                follow_redirects=False,
-                headers={"User-Agent": "Crawlbot/1.0 (+https://github.com/crawlbot)"},
-            )
-            client_to_use = own_client
+        from app.services.anti_bot import get_antibot_manager, ResponseClassification
+        antibot = get_antibot_manager()
 
         try:
-            while redirect_count <= max_redirects:
-                is_safe, safety_reason = validate_url_safety(current_url)
-                if not is_safe:
-                    return {
-                        "failed": True,
-                        "error": f"URL safety validation failed at {current_url}: {safety_reason}",
-                        "final_url": current_url,
-                        "status_code": 403,
-                        "fetched_at": fetched_at,
-                    }
+            response, diag = await antibot.fetch(
+                url=url,
+                tenant_id=tenant_id or self.tenant_id,
+                custom_client=self.client,
+                max_response_size=10 * 1024 * 1024,
+                url_validator=validate_url_safety,
+                job_id=self.job_id,
+            )
 
-                response = await client_to_use.get(current_url, follow_redirects=False)
-                http_status = response.status_code
-                fetched_at = datetime.now(timezone.utc)
-
-                if http_status in (301, 302, 303, 307, 308):
-                    location = response.headers.get("Location")
-                    if not location:
-                        break
-                    has_slash = location.rstrip().endswith("/") or (
-                        urlparse(location).path.endswith("/") and urlparse(location).path != "/"
-                    )
-                    next_url = self.normalizer.normalize(
-                        location,
-                        base_url=current_url,
-                        preserve_trailing_slash=has_slash,
-                    )
-                    if not next_url:
-                        break
-                    if next_url == current_url or next_url in visited_set:
-                        return {
-                            "failed": True,
-                            "error": f"Redirect loop detected: {current_url} -> {next_url}",
-                            "final_url": current_url,
-                            "status_code": http_status,
-                            "fetched_at": fetched_at,
-                        }
-                    redirect_count += 1
-                    if redirect_count > max_redirects:
-                        return {
-                            "failed": True,
-                            "error": f"Too many redirects encountered ({redirect_count})",
-                            "final_url": current_url,
-                            "status_code": http_status,
-                            "fetched_at": fetched_at,
-                        }
-                    visited_set.add(next_url)
-                    current_url = next_url
-                    continue
-
-                if response.status_code >= 400:
-                    return {
-                        "failed": True,
-                        "error": f"HTTP error status {response.status_code}",
-                        "final_url": current_url,
-                        "status_code": response.status_code,
-                        "fetched_at": fetched_at,
-                    }
-
+            if response is None or diag.classification not in (ResponseClassification.SUCCESS, ResponseClassification.JS_RENDER_REQUIRED):
                 return {
-                    "failed": False,
-                    "html": response.text,
-                    "final_url": current_url,
-                    "status_code": http_status,
+                    "failed": True,
+                    "error": diag.reason,
+                    "final_url": diag.url,
+                    "status_code": diag.http_status or 500,
                     "fetched_at": fetched_at,
+                    "diagnostics": diag,
                 }
 
             return {
                 "failed": False,
-                "html": "",
-                "final_url": current_url,
-                "status_code": 200,
+                "html": response.text,
+                "final_url": str(response.url),
+                "status_code": response.status_code,
                 "fetched_at": fetched_at,
+                "diagnostics": diag,
             }
         except httpx.TimeoutException:
             return {
                 "failed": True,
                 "error": f"Request timed out after {timeout} seconds",
-                "final_url": current_url,
+                "final_url": url,
                 "status_code": 408,
                 "fetched_at": fetched_at,
             }
@@ -981,13 +1051,10 @@ class ContentExtractor:
             return {
                 "failed": True,
                 "error": f"Fetch failed: {str(exc)}",
-                "final_url": current_url,
+                "final_url": url,
                 "status_code": 500,
                 "fetched_at": fetched_at,
             }
-        finally:
-            if own_client is not None:
-                await own_client.aclose()
 
     def _discover_spa_endpoints(self, html: str) -> tuple[list[str], list[str]]:
         """Identify client-side routes and public API endpoints from script tags and initial state."""

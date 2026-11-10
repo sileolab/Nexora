@@ -86,6 +86,24 @@ class JobInfo(BaseModel):
         default_factory=dict,
         description="Parameters and options used to launch this job.",
     )
+    tenant_id: Optional[str] = Field(
+        default=None,
+        description="Workspace or tenant identifier for multi-tenant data isolation.",
+    )
+    retry_count: int = Field(
+        default=0,
+        ge=0,
+        description="Number of retry attempts executed for this job.",
+    )
+    max_retries: int = Field(
+        default=3,
+        ge=0,
+        description="Maximum retry attempts permitted before final failure.",
+    )
+    metrics: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Observability, resilience, and request diagnostics metrics for this job.",
+    )
 
     @computed_field
     @property
@@ -149,4 +167,8 @@ class JobInfo(BaseModel):
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "finished_at": self.finished_at.isoformat() if self.finished_at else None,
             "config": self.config,
+            "tenant_id": self.tenant_id,
+            "retry_count": self.retry_count,
+            "max_retries": self.max_retries,
+            "metrics": self.metrics,
         }

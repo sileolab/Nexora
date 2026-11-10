@@ -11,7 +11,7 @@ import mimetypes
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 
 from app.schemas.responses import ApiResponse
@@ -28,29 +28,54 @@ router = APIRouter(prefix="/api/files", tags=["files"])
 _file_service = FileProcessorService()
 
 
+@router.get("/supported-formats", response_model=ApiResponse)
+async def supported_formats() -> ApiResponse:
+    """Return supported file extensions and max limits."""
+    return ApiResponse.ok(
+        data={
+            "supported_formats": sorted([ext.lstrip(".") for ext in ALLOWED_EXTENSIONS]),
+            "allowed_extensions": sorted(list(ALLOWED_EXTENSIONS)),
+            "max_file_size_bytes": MAX_FILE_SIZE_BYTES,
+            "max_file_size_mb": MAX_FILE_SIZE_BYTES // (1024 * 1024),
+        },
+        message="Supported file formats",
+    )
+
+
 @router.post("/upload", response_model=ApiResponse)
-async def upload_file(file: UploadFile = File(...)) -> ApiResponse:
-    """Upload a file (.md, .txt, .json, .jsonl, .csv) for processing."""
+async def upload_file(http_request: Request, file: UploadFile = File(...)) -> ApiResponse:
+    """Upload a file (.md, .txt, .json, .jsonl, .csv, .pdf, .docx) for processing with quota check."""
     if not file.filename:
-        raise HTTPException(status_code=400, detail="نام فایل ارسالی خالی است.")
+        raise HTTPException(status_code=400, detail="Uploaded file name is empty.")
 
     try:
         content_bytes = await file.read()
-        record = _file_service.upload_file(file.filename, content_bytes)
+        tenant_id = getattr(http_request.state, "tenant_id", None)
+        if tenant_id:
+            from app.services.quota_enforcer import get_quota_enforcer
+            try:
+                get_quota_enforcer().check_file_size(tenant_id, len(content_bytes))
+            except ValueError as err:
+                raise HTTPException(status_code=429, detail=str(err))
+
+        effective_tenant = getattr(http_request.state, "authenticated_workspace_id", None) or getattr(http_request.state, "tenant_id", None) or getattr(http_request.state, "workspace_id", None)
+        record = _file_service.upload_file(file.filename, content_bytes, tenant_id=effective_tenant)
         logger.info("Uploaded file %s (ID: %s, %d bytes)", record["filename"], record["file_id"], record["size_bytes"])
         return ApiResponse.ok(
             data=record,
-            message=f"فایل '{record['filename']}' با موفقیت بارگذاری شد.",
+            message=f"File '{record['filename']}' uploaded successfully.",
         )
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.exception("Upload failed for %s", file.filename)
-        raise HTTPException(status_code=500, detail=f"خطا در ذخیره‌سازی فایل: {str(exc)}")
+        raise HTTPException(status_code=500, detail=f"Error saving file: {str(exc)}")
 
 
 @router.post("/process", response_model=ApiResponse)
-async def process_file(request: dict[str, Any]) -> ApiResponse:
+async def process_file(request: dict[str, Any], http_request: Request) -> ApiResponse:
     """Execute selected processing pipeline on an uploaded file.
 
     Body parameters:
@@ -60,20 +85,27 @@ async def process_file(request: dict[str, Any]) -> ApiResponse:
     """
     file_id = request.get("file_id", "").strip()
     if not file_id:
-        raise HTTPException(status_code=400, detail="شناسه فایل (file_id) الزامی است.")
+        raise HTTPException(status_code=400, detail="File ID (file_id) is required.")
 
     operations = request.get("operations", [])
     if not operations or not isinstance(operations, list):
-        raise HTTPException(status_code=400, detail="حداقل یک عملیات پردازش باید انتخاب شود.")
+        raise HTTPException(status_code=400, detail="At least one processing operation must be selected.")
 
     options = request.get("options", {})
+    tenant_id = getattr(http_request.state, "tenant_id", None)
 
     try:
-        result = await _file_service.process(file_id, operations, options)
+        effective_tenant = getattr(http_request.state, "authenticated_workspace_id", None) or getattr(http_request.state, "tenant_id", None) or getattr(http_request.state, "workspace_id", None)
+        result = await _file_service.process(file_id, operations, options, tenant_id=effective_tenant)
+        if tenant_id:
+            from app.services.usage_meter import get_usage_meter
+            meter = get_usage_meter()
+            meter.record(tenant_id, "files_processed", 1, job_id=file_id)
+
         logger.info("Processed file %s with operations %s", file_id, operations)
         return ApiResponse.ok(
             data=result,
-            message="عملیات پردازش فایل با موفقیت پایان یافت.",
+            message="File processing completed successfully.",
         )
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
@@ -81,39 +113,41 @@ async def process_file(request: dict[str, Any]) -> ApiResponse:
         raise HTTPException(status_code=404, detail=str(fe))
     except Exception as exc:
         logger.exception("Processing failed for file %s", file_id)
-        raise HTTPException(status_code=500, detail=f"خطا در پردازش فایل: {str(exc)}")
+        raise HTTPException(status_code=500, detail=f"Error processing file: {str(exc)}")
 
 
 @router.get("/preview/{artifact_id}", response_model=ApiResponse)
-async def preview_artifact(artifact_id: str) -> ApiResponse:
+async def preview_artifact(artifact_id: str, http_request: Request) -> ApiResponse:
     """Retrieve metadata and preview for a processed artifact."""
-    artifact = _file_service.get_artifact(artifact_id)
+    tenant_id = getattr(http_request.state, "authenticated_workspace_id", None) or getattr(http_request.state, "tenant_id", None) or getattr(http_request.state, "workspace_id", None)
+    artifact = _file_service.get_artifact(artifact_id, tenant_id=tenant_id)
     if not artifact:
-        raise HTTPException(status_code=404, detail="نتیجه پردازش (artifact) یافت نشد.")
+        raise HTTPException(status_code=404, detail="Processing artifact not found.")
 
     path = Path(artifact["stored_path"])
     if not path.exists():
-        raise HTTPException(status_code=404, detail="فایل فیزیکی خروجی یافت نشد.")
+        raise HTTPException(status_code=404, detail="Physical output file not found.")
 
     with open(path, "r", encoding="utf-8", errors="replace") as f:
         content_preview = f.read(3000)
 
     return ApiResponse.ok(
         data={**artifact, "content_preview": content_preview},
-        message="پیش‌نمایش خروجی دریافت شد.",
+        message="Output preview retrieved successfully.",
     )
 
 
 @router.get("/download/{artifact_id}")
-async def download_artifact(artifact_id: str):
+async def download_artifact(artifact_id: str, http_request: Request):
     """Download the processed output file."""
-    artifact = _file_service.get_artifact(artifact_id)
+    tenant_id = getattr(http_request.state, "authenticated_workspace_id", None) or getattr(http_request.state, "tenant_id", None) or getattr(http_request.state, "workspace_id", None)
+    artifact = _file_service.get_artifact(artifact_id, tenant_id=tenant_id)
     if not artifact:
-        raise HTTPException(status_code=404, detail="نتیجه پردازش جهت دانلود یافت نشد.")
+        raise HTTPException(status_code=404, detail="Processing artifact for download not found.")
 
     path = Path(artifact["stored_path"])
     if not path.exists():
-        raise HTTPException(status_code=404, detail="فایل فیزیکی خروجی وجود ندارد.")
+        raise HTTPException(status_code=404, detail="Physical output file does not exist.")
 
     content_type, _ = mimetypes.guess_type(artifact["filename"])
     content_type = content_type or "application/octet-stream"
@@ -126,9 +160,10 @@ async def download_artifact(artifact_id: str):
 
 
 @router.get("/info/{file_id}", response_model=ApiResponse)
-async def file_info(file_id: str) -> ApiResponse:
+async def file_info(file_id: str, http_request: Request) -> ApiResponse:
     """Retrieve metadata for an uploaded file."""
-    info = _file_service.get_file(file_id)
+    tenant_id = getattr(http_request.state, "authenticated_workspace_id", None) or getattr(http_request.state, "tenant_id", None) or getattr(http_request.state, "workspace_id", None)
+    info = _file_service.get_file(file_id, tenant_id=tenant_id)
     if not info:
-        raise HTTPException(status_code=404, detail="فایل مورد نظر یافت نشد.")
-    return ApiResponse.ok(data=info, message="اطلاعات فایل دریافت شد.")
+        raise HTTPException(status_code=404, detail="Requested file not found.")
+    return ApiResponse.ok(data=info, message="File information retrieved successfully.")

@@ -1,0 +1,567 @@
+/* ==========================================================================
+   Crawlbot Studio - Page-Specific Views & Specialized Workspaces
+   Discovery, Extraction, RAG AI Studio, File Processing, Diff Viewer
+   Strict 4-Color Palette: #000000, #1A1A1A, #3CAEC8, #FFFFFF
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Discovery Workspace: Hero URL Command Bar & Settings
+   -------------------------------------------------------------------------- */
+.discovery-workspace, .extraction-workspace, .ai-workspace, .files-workspace {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.hero-command-bar {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-panel);
+    padding: 1.5rem 1.75rem;
+    box-shadow: var(--shadow-card);
+}
+
+.command-bar-inner {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    width: 100%;
+}
+
+.url-input-container {
+    position: relative;
+    flex: 1;
+    display: flex;
+    align-items: center;
+}
+
+.url-input-icon {
+    position: absolute;
+    inset-inline-start: 1.15rem;
+    color: var(--color-primary);
+    font-size: 1.05rem;
+    pointer-events: none;
+}
+
+.input-hero-url {
+    padding-inline-start: 2.85rem;
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-base);
+    background-color: #000000;
+}
+
+.command-bar-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+/* Collapsible Advanced Settings Panel */
+.collapsible-settings-panel {
+    display: none;
+    margin-top: 1.25rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--color-border-subtle);
+    animation: fadeInContent 0.2s ease-out;
+}
+
+.collapsible-settings-panel.open {
+    display: block;
+}
+
+.settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.patterns-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.switches-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+}
+
+/* --------------------------------------------------------------------------
+   2. Status Metric Strip
+   -------------------------------------------------------------------------- */
+.metrics-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.metric-card {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    padding: 1.15rem 1.4rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.metric-icon-box {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-control);
+    background-color: #000000;
+    border: 1px solid var(--color-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    color: var(--color-primary);
+    flex-shrink: 0;
+}
+
+.metric-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+}
+
+.metric-value {
+    font-family: var(--font-family-mono);
+    font-size: 1.45rem;
+    font-weight: 700;
+    color: #FFFFFF;
+    line-height: 1.2;
+}
+
+.metric-label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* --------------------------------------------------------------------------
+   3. Table Toolbars & Search Controls
+   -------------------------------------------------------------------------- */
+.table-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.85rem;
+    flex-wrap: wrap;
+}
+
+.search-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-width: 240px;
+}
+
+.search-icon {
+    position: absolute;
+    inset-inline-start: 0.85rem;
+    color: var(--color-text-dim);
+    font-size: 0.85rem;
+    pointer-events: none;
+}
+
+.input-search {
+    padding-inline-start: 2.2rem;
+    padding-inline-end: 2rem;
+    font-size: var(--font-size-xs);
+    background-color: #000000;
+}
+
+.btn-clear-search {
+    position: absolute;
+    inset-inline-end: 0.5rem;
+    background: transparent;
+    border: none;
+    color: var(--color-text-dim);
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 0.25rem;
+}
+
+.btn-clear-search:hover {
+    color: #FFFFFF;
+}
+
+.toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* --------------------------------------------------------------------------
+   4. Extraction Workspace: Split Queue & Options Grid
+   -------------------------------------------------------------------------- */
+.extraction-split-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+}
+
+.queue-panel, .options-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.queue-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.queue-title {
+    font-size: var(--font-size-md);
+    font-weight: 700;
+    color: #FFFFFF;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.urls-textarea-container {
+    position: relative;
+    width: 100%;
+}
+
+.options-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.options-grid-3 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.85rem;
+}
+
+/* Direct AI Studio Banner Card */
+.direct-ai-banner {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-primary-border);
+    border-radius: var(--radius-panel);
+    padding: 1.5rem 1.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+}
+
+.direct-ai-content {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+}
+
+.direct-ai-icon-box {
+    width: 52px;
+    height: 52px;
+    border-radius: var(--radius-card);
+    background-color: #000000;
+    border: 1px solid var(--color-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-primary);
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.direct-ai-text h3 {
+    font-size: var(--font-size-md);
+    font-weight: 700;
+    color: #FFFFFF;
+    margin-bottom: 0.25rem;
+}
+
+.direct-ai-text p {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+/* --------------------------------------------------------------------------
+   5. RAG AI Studio & Multi-Feature Grid
+   -------------------------------------------------------------------------- */
+.ai-features-three-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.25rem;
+}
+
+.ai-feature-box {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: all var(--transition-fast);
+}
+
+.ai-feature-box:hover {
+    border-color: var(--color-primary-border);
+}
+
+.ai-feature-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.85rem;
+    padding: 1.15rem 1.4rem;
+    border-bottom: 1px solid var(--color-border-subtle);
+    background-color: rgba(255, 255, 255, 0.015);
+}
+
+.feature-title-group {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.feature-title-group i {
+    font-size: 1.1rem;
+    color: var(--color-primary);
+}
+
+.feature-title-group h3 {
+    font-size: var(--font-size-base);
+    font-weight: 700;
+    color: #FFFFFF;
+}
+
+.ai-feature-body {
+    padding: 1.25rem 1.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    flex: 1;
+}
+
+.ai-feature-body p {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+}
+
+.feature-settings-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.ai-feature-footer {
+    padding: 1rem 1.4rem;
+    border-top: 1px solid var(--color-border-subtle);
+    background-color: rgba(255, 255, 255, 0.015);
+}
+
+/* Master Pipeline Run Card */
+.ai-master-run-card {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-panel);
+    padding: 1.5rem 1.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.ai-master-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.ai-pipeline-toggles {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+}
+
+/* Live Terminal & JSON / Chunks Preview */
+.live-preview-card {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-panel);
+    overflow: hidden;
+}
+
+.preview-tabs {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.terminal-code-block {
+    background-color: #000000;
+    color: #FFFFFF;
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-xs);
+    padding: 1.25rem 1.5rem;
+    line-height: 1.6;
+    max-height: 480px;
+    overflow: auto;
+    border: 1px solid var(--color-border-subtle);
+    border-radius: calc(var(--radius-card) - 4px);
+    margin: 1.25rem 1.6rem;
+}
+
+/* --------------------------------------------------------------------------
+   6. File Processing Studio & Interactive Diff Viewer
+   -------------------------------------------------------------------------- */
+.file-dropzone {
+    border: 2px dashed var(--color-border-hover);
+    border-radius: var(--radius-panel);
+    background-color: var(--color-surface);
+    padding: 3rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    gap: 0.85rem;
+}
+
+.file-dropzone:hover, .file-dropzone.dragover {
+    border-color: var(--color-primary);
+    background-color: var(--color-surface-hover);
+}
+
+.dropzone-icon {
+    font-size: 2.75rem;
+    color: var(--color-primary);
+}
+
+.dropzone-title {
+    font-size: var(--font-size-md);
+    font-weight: 700;
+    color: #FFFFFF;
+}
+
+.dropzone-hint {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+}
+
+.file-info-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+    background-color: #000000;
+    border: 1px solid var(--color-primary-border);
+    padding: 0.45rem 1rem;
+    border-radius: var(--radius-control);
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-xs);
+    color: var(--color-primary);
+}
+
+.pipeline-ops-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.85rem;
+    margin: 1rem 0;
+}
+
+.pipeline-op-card {
+    background-color: #000000;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    transition: border-color var(--transition-fast);
+}
+
+.pipeline-op-card:hover {
+    border-color: var(--color-border-hover);
+}
+
+.pipeline-op-card input[type="checkbox"] {
+    accent-color: var(--color-primary);
+}
+
+/* Diff Viewer in Strict 4-Color system */
+.diff-viewer {
+    background-color: #000000;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-xs);
+    line-height: 1.5;
+    max-height: 480px;
+    overflow: auto;
+}
+
+.diff-line {
+    padding: 0.2rem 1rem;
+    display: flex;
+    gap: 1rem;
+}
+
+.diff-line-add {
+    background-color: rgba(60, 174, 200, 0.12);
+    color: var(--color-primary);
+    border-inline-start: 3px solid var(--color-primary);
+}
+
+.diff-line-del {
+    background-color: rgba(255, 255, 255, 0.05);
+    color: var(--color-text-muted);
+    text-decoration: line-through;
+    border-inline-start: 3px solid rgba(255, 255, 255, 0.3);
+}
+
+.diff-line-equal {
+    color: var(--color-text-secondary);
+}
+
+/* --------------------------------------------------------------------------
+   7. LTR Mode Overrides
+   -------------------------------------------------------------------------- */
+html[dir="ltr"] {
+    direction: ltr;
+}
+
+html[dir="ltr"] .data-table th,
+html[dir="ltr"] .data-table td {
+    text-align: left;
+}
+
+html[dir="ltr"] .tab-button {
+    text-align: left;
+}
+
+html[dir="ltr"] #btn-goto-ai-tab i.fa-arrow-left {
+    transform: rotate(180deg);
+}
+
+/* Responsive adjustments */
+@media (max-width: 1100px) {
+    .ai-features-three-grid {
+        grid-template-columns: 1fr;
+    }
+    .extraction-split-grid {
+        grid-template-columns: 1fr;
+    }
+}

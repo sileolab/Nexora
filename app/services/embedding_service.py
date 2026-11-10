@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from app.core.security import sanitize_secret_leakage
 import time
 from typing import Any, Optional
 
@@ -99,9 +100,33 @@ class EmbeddingService:
         embedded = 0
         failed = 0
 
-        # Process in batches
-        for batch_start in range(0, len(chunks), self.batch_size):
-            batch = chunks[batch_start: batch_start + self.batch_size]
+        # Filter chunks: Reuse existing valid vectors if content hasn't changed or been invalidated
+        chunks_to_embed: list[DocumentChunk] = []
+        for c in chunks:
+            has_valid = (
+                c.embedding is not None
+                and len(c.embedding) > 0
+                and c.embedding_model == self.model
+                and not c.metadata.get("embedding_invalidated", False)
+            )
+            if has_valid:
+                embedded += 1
+            else:
+                chunks_to_embed.append(c)
+
+        if not chunks_to_embed:
+            logger.info("All %d chunks already possess valid embeddings; re-embedding skipped.", len(chunks))
+            return EmbeddingStats(
+                total_chunks=len(chunks),
+                embedded_chunks=embedded,
+                failed_chunks=0,
+                model=self.model,
+                total_tokens=0,
+            )
+
+        # Process needed chunks in batches
+        for batch_start in range(0, len(chunks_to_embed), self.batch_size):
+            batch = chunks_to_embed[batch_start: batch_start + self.batch_size]
             texts = [c.text for c in batch]
 
             vectors, tokens, error = await self._embed_with_retry(texts)
@@ -118,11 +143,12 @@ class EmbeddingService:
                 for chunk, vector in zip(batch, vectors):
                     chunk.embedding = vector
                     chunk.embedding_model = self.model
+                    chunk.metadata["embedding_invalidated"] = False
                 embedded += len(batch)
                 total_tokens += tokens
 
             # Small delay between batches to be polite to the API
-            if batch_start + self.batch_size < len(chunks):
+            if batch_start + self.batch_size < len(chunks_to_embed):
                 await asyncio.sleep(0.1)
 
         logger.info(
@@ -164,7 +190,7 @@ class EmbeddingService:
                 return vectors, tokens, None
 
             except Exception as exc:
-                err_str = str(exc)
+                err_str = sanitize_secret_leakage(str(exc), secrets=[self.api_key])
                 is_transient = any(
                     keyword in err_str.lower()
                     for keyword in ("rate", "timeout", "503", "502", "500", "connection")

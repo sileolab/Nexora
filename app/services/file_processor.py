@@ -46,12 +46,13 @@ from .chunker import ChunkerService
 from .embedding_service import EmbeddingService
 from .normalizer import PersianNormalizer
 from .rag_enhancer import RAGEnhancer
+from .semantic_repair import SemanticRepairService
 
 logger = logging.getLogger(__name__)
 
 # Constants and limits
 MAX_FILE_SIZE_BYTES: Final[int] = 10 * 1024 * 1024  # 10 MB limit
-ALLOWED_EXTENSIONS: Final[set[str]] = {".md", ".txt", ".json", ".jsonl", ".csv"}
+ALLOWED_EXTENSIONS: Final[set[str]] = {".md", ".txt", ".json", ".jsonl", ".csv", ".pdf", ".docx"}
 MAX_JSON_DEPTH: Final[int] = 25
 
 
@@ -88,7 +89,125 @@ class FileProcessorService:
     # File Storage & Validation
     # -----------------------------------------------------------------------
 
-    def upload_file(self, filename: str, content_bytes: bytes) -> dict[str, Any]:
+    def _extract_pdf_content(
+        self,
+        content_bytes: bytes,
+        max_pages: Optional[int] = None,
+    ) -> tuple[str, list[dict[str, Any]], bool, list[str]]:
+        """Extract text and metadata from PDF bytes page by page.
+
+        Detects scanned/image-only PDFs and warns rather than performing expensive OCR.
+        """
+        warnings: list[str] = []
+        pages_data: list[dict[str, Any]] = []
+        text_parts: list[str] = []
+        total_chars = 0
+        is_scanned = False
+
+        try:
+            import pypdf
+            reader = pypdf.PdfReader(io.BytesIO(content_bytes))
+            total_pages = len(reader.pages)
+            pages_to_process = total_pages if max_pages is None else min(total_pages, max_pages)
+
+            for i in range(pages_to_process):
+                page = reader.pages[i]
+                try:
+                    ptxt = page.extract_text() or ""
+                except Exception as p_err:
+                    ptxt = ""
+                    warnings.append(f"خطا در استخراج متن صفحه {i + 1}: {str(p_err)}")
+
+                clean_ptxt = ptxt.strip()
+                total_chars += len(clean_ptxt)
+                pages_data.append({
+                    "page_number": i + 1,
+                    "text": clean_ptxt,
+                    "char_count": len(clean_ptxt),
+                })
+                if clean_ptxt:
+                    text_parts.append(f"## صفحه {i + 1}\n\n{clean_ptxt}")
+
+            if (total_pages > 0 and total_chars < 50) or (total_pages > 0 and (total_chars / total_pages) < 15):
+                is_scanned = True
+                warnings.append(
+                    "سند PDF فاقد لایه متنی کافی است و به نظر می‌رسد تصویری یا اسکن‌شده باشد. "
+                    "برای جلوگیری از هزینه کورکورانه و کندی، پردازش خودکار OCR انجام نشد."
+                )
+
+        except Exception as exc:
+            warnings.append(f"خطا در بازخوانی فایل PDF: {str(exc)}")
+
+        full_text = "\n\n".join(text_parts) if text_parts else ""
+        return full_text, pages_data, is_scanned, warnings
+
+    def _extract_docx_content(
+        self,
+        content_bytes: bytes,
+    ) -> tuple[str, list[dict[str, Any]], list[str]]:
+        """Extract headings, lists, tables (Markdown format), and paragraphs from DOCX bytes."""
+        warnings: list[str] = []
+        sections_data: list[dict[str, Any]] = []
+        text_parts: list[str] = []
+
+        try:
+            import docx
+            from docx.text.paragraph import Paragraph
+            from docx.table import Table
+
+            doc = docx.Document(io.BytesIO(content_bytes))
+
+            for child in doc.element.body:
+                if child.tag.endswith("p"):
+                    p = Paragraph(child, doc)
+                    txt = p.text.strip()
+                    if not txt:
+                        continue
+                    style_name = (p.style.name or "").lower() if p.style else ""
+                    if "heading 1" in style_name:
+                        text_parts.append(f"# {txt}")
+                        sections_data.append({"type": "heading", "level": 1, "text": txt})
+                    elif "heading 2" in style_name:
+                        text_parts.append(f"## {txt}")
+                        sections_data.append({"type": "heading", "level": 2, "text": txt})
+                    elif "heading 3" in style_name:
+                        text_parts.append(f"### {txt}")
+                        sections_data.append({"type": "heading", "level": 3, "text": txt})
+                    elif "heading 4" in style_name:
+                        text_parts.append(f"#### {txt}")
+                        sections_data.append({"type": "heading", "level": 4, "text": txt})
+                    elif "list" in style_name or style_name.startswith("bullet"):
+                        text_parts.append(f"- {txt}")
+                        sections_data.append({"type": "list_item", "text": txt})
+                    else:
+                        text_parts.append(txt)
+                        sections_data.append({"type": "paragraph", "text": txt})
+
+                elif child.tag.endswith("tbl"):
+                    t = Table(child, doc)
+                    table_rows: list[list[str]] = []
+                    for row in t.rows:
+                        row_cells = [cell.text.replace("\n", " ").strip() for cell in row.cells]
+                        table_rows.append(row_cells)
+                    if table_rows:
+                        col_count = max(len(r) for r in table_rows)
+                        padded_rows = [r + [""] * (col_count - len(r)) for r in table_rows]
+                        header = "| " + " | ".join(padded_rows[0]) + " |"
+                        separator = "| " + " | ".join(["---"] * col_count) + " |"
+                        md_table = [header, separator]
+                        for r in padded_rows[1:]:
+                            md_table.append("| " + " | ".join(r) + " |")
+                        md_table_str = "\n".join(md_table)
+                        text_parts.append(md_table_str)
+                        sections_data.append({"type": "table", "rows": len(padded_rows), "cols": col_count})
+
+        except Exception as exc:
+            warnings.append(f"خطا در بازخوانی فایل DOCX: {str(exc)}")
+
+        full_text = "\n\n".join(text_parts) if text_parts else ""
+        return full_text, sections_data, warnings
+
+    def upload_file(self, filename: str, content_bytes: bytes, tenant_id: Optional[str] = None) -> dict[str, Any]:
         """Save and inspect an uploaded file in the secure sandbox.
 
         Args:
@@ -122,33 +241,91 @@ class FileProcessorService:
         with open(dest_path, "wb") as f:
             f.write(content_bytes)
 
-        # Decode content with encoding fallback
-        text_content, encoding_used = self._decode_bytes(content_bytes)
+        if ext == ".pdf":
+            text_content, pages, is_scanned, pdf_warnings = self._extract_pdf_content(content_bytes)
+            encoding_used = "binary/pdf"
+            line_count = len(text_content.splitlines())
+            snippet = text_content[:1000]
+            record = {
+                "file_id": file_id,
+                "filename": safe_name,
+                "format": "pdf",
+                "size_bytes": len(content_bytes),
+                "line_count": line_count,
+                "encoding": encoding_used,
+                "preview_snippet": snippet,
+                "stored_path": str(dest_path),
+                "uploaded_at": datetime.now(timezone.utc).isoformat(),
+                "page_count": len(pages),
+                "pages": pages,
+                "is_scanned": is_scanned,
+                "warnings": pdf_warnings,
+                "extracted_text": text_content,
+            }
+        elif ext == ".docx":
+            text_content, sections, docx_warnings = self._extract_docx_content(content_bytes)
+            encoding_used = "binary/docx"
+            line_count = len(text_content.splitlines())
+            snippet = text_content[:1000]
+            record = {
+                "file_id": file_id,
+                "filename": safe_name,
+                "format": "docx",
+                "size_bytes": len(content_bytes),
+                "line_count": line_count,
+                "encoding": encoding_used,
+                "preview_snippet": snippet,
+                "stored_path": str(dest_path),
+                "uploaded_at": datetime.now(timezone.utc).isoformat(),
+                "sections_count": len(sections),
+                "warnings": docx_warnings,
+                "extracted_text": text_content,
+            }
+        else:
+            text_content, encoding_used = self._decode_bytes(content_bytes)
+            line_count = len(text_content.splitlines())
+            snippet = text_content[:1000]
+            record = {
+                "file_id": file_id,
+                "filename": safe_name,
+                "format": ext.lstrip("."),
+                "size_bytes": len(content_bytes),
+                "line_count": line_count,
+                "encoding": encoding_used,
+                "preview_snippet": snippet,
+                "stored_path": str(dest_path),
+                "uploaded_at": datetime.now(timezone.utc).isoformat(),
+            }
 
-        line_count = len(text_content.splitlines())
-        snippet = text_content[:1000]
-
-        record = {
-            "file_id": file_id,
-            "filename": safe_name,
-            "format": ext.lstrip("."),
-            "size_bytes": len(content_bytes),
-            "line_count": line_count,
-            "encoding": encoding_used,
-            "preview_snippet": snippet,
-            "stored_path": str(dest_path),
-            "uploaded_at": datetime.now(timezone.utc).isoformat(),
-        }
+        record["tenant_id"] = tenant_id
         self._memory_files[file_id] = record
+        if tenant_id:
+            try:
+                from app.services.usage_meter import get_usage_meter
+                get_usage_meter().record(
+                    tenant_id,
+                    "storage_bytes",
+                    record["size_bytes"],
+                    job_id=file_id,
+                    idempotency_key=f"storage_file:{file_id}",
+                )
+            except Exception as u_err:
+                logger.warning("Could not record storage_bytes for file %s: %s", file_id, u_err)
         return record
 
-    def get_file(self, file_id: str) -> Optional[dict[str, Any]]:
-        """Retrieve stored file record by ID."""
-        return self._memory_files.get(file_id)
+    def get_file(self, file_id: str, tenant_id: Optional[str] = None) -> Optional[dict[str, Any]]:
+        """Retrieve stored file record by ID, scoped to tenant."""
+        rec = self._memory_files.get(file_id)
+        if rec and tenant_id and rec.get("tenant_id") != tenant_id:
+            return None
+        return rec
 
-    def get_artifact(self, artifact_id: str) -> Optional[dict[str, Any]]:
-        """Retrieve stored artifact record by ID."""
-        return self._memory_artifacts.get(artifact_id)
+    def get_artifact(self, artifact_id: str, tenant_id: Optional[str] = None) -> Optional[dict[str, Any]]:
+        """Retrieve stored artifact record by ID, scoped to tenant."""
+        art = self._memory_artifacts.get(artifact_id)
+        if art and tenant_id and art.get("tenant_id") != tenant_id:
+            return None
+        return art
 
     # -----------------------------------------------------------------------
     # Core Pipeline & Execution
@@ -159,6 +336,7 @@ class FileProcessorService:
         file_id: str,
         operations: list[str],
         options: Optional[dict[str, Any]] = None,
+        tenant_id: Optional[str] = None,
     ) -> dict[str, Any]:
         """Execute selected processing pipeline on an uploaded file.
 
@@ -166,12 +344,13 @@ class FileProcessorService:
             file_id: Identifier of the uploaded file.
             operations: List of operation names in order of execution.
             options: Configuration parameters for operations.
+            tenant_id: Optional tenant ID for isolation.
 
         Returns:
             Dictionary containing process execution report, diff, and output artifact.
         """
         start_time = datetime.now(timezone.utc)
-        file_info = self.get_file(file_id)
+        file_info = self.get_file(file_id, tenant_id=tenant_id)
         if not file_info:
             raise ValueError(f"فایل با شناسه '{file_id}' یافت نشد.")
 
@@ -182,13 +361,10 @@ class FileProcessorService:
         with open(dest_path, "rb") as f:
             raw_bytes = f.read()
 
-        text_content, _ = self._decode_bytes(raw_bytes)
-        file_format = file_info["format"]
+        file_format = file_info["format"].lower()
         opts = options or {}
 
         # Pipeline state tracking
-        current_data: Any = text_content
-        current_format: str = file_format
         telemetry: dict[str, Any] = {
             "records_in": file_info["line_count"],
             "records_out": file_info["line_count"],
@@ -198,6 +374,26 @@ class FileProcessorService:
             "warnings": [],
             "operations_applied": [],
         }
+
+        if file_format == "pdf":
+            text_content, pages, is_scanned, pdf_warnings = self._extract_pdf_content(
+                raw_bytes, opts.get("max_pages")
+            )
+            current_data = text_content
+            current_format = "md"
+            opts.setdefault("pdf_pages", pages)
+            telemetry["warnings"].extend(pdf_warnings)
+            telemetry["page_count"] = len(pages)
+            telemetry["is_scanned"] = is_scanned
+        elif file_format == "docx":
+            text_content, sections, docx_warnings = self._extract_docx_content(raw_bytes)
+            current_data = text_content
+            current_format = "md"
+            telemetry["warnings"].extend(docx_warnings)
+        else:
+            text_content, _ = self._decode_bytes(raw_bytes)
+            current_data = text_content
+            current_format = file_format
 
         # Sequential pipeline execution
         for op in operations:
@@ -223,6 +419,13 @@ class FileProcessorService:
                 current_data, stats = self._op_json_cleanup(current_data, opts)
                 telemetry["operations_applied"].append("json_cleanup")
 
+            elif op_name in ("deduplicate", "dedup"):
+                current_data, stats = self._op_deduplicate(current_data, current_format, opts)
+                telemetry["duplicates_removed"] = telemetry.get("duplicates_removed", 0) + stats.get("duplicates_removed", 0)
+                if "unique_records" in stats:
+                    telemetry["records_out"] = stats["unique_records"]
+                telemetry["operations_applied"].append("deduplicate")
+
             elif op_name == "llm_json_optimize":
                 current_data, stats = await self._op_llm_json_optimize(
                     current_data, current_format, opts, file_info["filename"]
@@ -240,6 +443,17 @@ class FileProcessorService:
                 telemetry["chunks_produced"] = stats.get("total_chunks", 0)
                 telemetry["records_out"] = stats.get("total_chunks", 0)
                 telemetry["operations_applied"].append("chunk")
+
+            elif op_name in ("semantic_repair", "repair"):
+                current_data, stats = await self._op_semantic_repair(
+                    current_data, current_format, opts, file_info["filename"]
+                )
+                current_format = "json"
+                if stats.get("warnings"):
+                    telemetry["warnings"].extend(stats["warnings"])
+                telemetry["repaired_chunks"] = stats.get("repaired_chunks_count", 0)
+                telemetry["artifacts_removed"] = stats.get("artifacts_removed_count", 0)
+                telemetry["operations_applied"].append("semantic_repair")
 
             elif op_name == "embed":
                 current_data, stats = await self._op_embed(
@@ -273,6 +487,7 @@ class FileProcessorService:
         artifact_record = {
             "artifact_id": artifact_id,
             "file_id": file_id,
+            "tenant_id": tenant_id or file_info.get("tenant_id"),
             "filename": artifact_filename,
             "format": output_format,
             "stored_path": str(artifact_path),
@@ -284,6 +499,28 @@ class FileProcessorService:
         }
         self._memory_artifacts[artifact_id] = artifact_record
 
+        effective_tenant = tenant_id or file_info.get("tenant_id")
+        if effective_tenant:
+            try:
+                from app.services.usage_meter import get_usage_meter
+                meter = get_usage_meter()
+                meter.record(
+                    effective_tenant,
+                    "files_processed",
+                    1,
+                    job_id=file_id,
+                    idempotency_key=f"files_processed:{file_id}",
+                )
+                meter.record(
+                    effective_tenant,
+                    "storage_bytes",
+                    artifact_record["size_bytes"],
+                    job_id=artifact_id,
+                    idempotency_key=f"storage_artifact:{artifact_id}",
+                )
+            except Exception as u_err:
+                logger.warning("Could not record usage for processed file %s: %s", file_id, u_err)
+
         return {
             "status": "success",
             "file_id": file_id,
@@ -294,7 +531,7 @@ class FileProcessorService:
             "download_url": f"/api/files/download/{artifact_id}",
             "telemetry": telemetry,
             "diff": diff_str[:5000],
-            "output_preview": output_str[:2500],
+            "output_preview": output_str[:50000],
             "duration_seconds": duration_sec,
         }
 
@@ -308,13 +545,14 @@ class FileProcessorService:
         import asyncio
         import concurrent.futures
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                with concurrent.futures.ThreadPoolExecutor() as pool:
-                    return pool.submit(asyncio.run, self.process(file_id, operations, options)).result()
-            return loop.run_until_complete(self.process(file_id, operations, options))
+            loop = asyncio.get_running_loop()
         except RuntimeError:
-            return asyncio.run(self.process(file_id, operations, options))
+            loop = None
+
+        if loop is not None and loop.is_running():
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                return pool.submit(asyncio.run, self.process(file_id, operations, options)).result()
+        return asyncio.run(self.process(file_id, operations, options))
 
     # -----------------------------------------------------------------------
     # Operation Implementations
@@ -445,6 +683,95 @@ class FileProcessorService:
 
         return cleaned, {"status": "cleaned"}
 
+    def _op_deduplicate(self, data: Any, current_format: str, opts: dict[str, Any]) -> tuple[Any, dict[str, Any]]:
+        """Deduplicate records, chunks, or sections based on content hash or text comparison."""
+        seen_hashes: set[str] = set()
+        duplicates_removed = 0
+
+        def _calc_hash(item: Any) -> str:
+            if isinstance(item, dict):
+                h = item.get("content_hash") or item.get("source_doc_hash")
+                if h:
+                    return str(h)
+                text_val = item.get("text") or item.get("content_markdown") or item.get("content_text") or item.get("content")
+                if text_val and isinstance(text_val, str):
+                    return hashlib.sha256(text_val.strip().encode("utf-8")).hexdigest()
+                return hashlib.sha256(json.dumps(item, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+            elif isinstance(item, str):
+                return hashlib.sha256(item.strip().encode("utf-8")).hexdigest()
+            return hashlib.sha256(str(item).encode("utf-8")).hexdigest()
+
+        if isinstance(data, list):
+            deduped_list: list[Any] = []
+            for item in data:
+                h = _calc_hash(item)
+                if h in seen_hashes:
+                    duplicates_removed += 1
+                    if isinstance(item, dict) and "url" in item:
+                        for prev in deduped_list:
+                            if isinstance(prev, dict) and _calc_hash(prev) == h:
+                                alts = prev.setdefault("alternate_sources", [])
+                                if item["url"] not in alts and item["url"] != prev.get("url"):
+                                    alts.append(item["url"])
+                                break
+                    continue
+                seen_hashes.add(h)
+                deduped_list.append(item)
+            return deduped_list, {"duplicates_removed": duplicates_removed, "unique_records": len(deduped_list)}
+
+        elif isinstance(data, str):
+            # 1. Try parsing full JSON array
+            try:
+                parsed = json.loads(data)
+                if isinstance(parsed, list):
+                    res_list, stats = self._op_deduplicate(parsed, current_format, opts)
+                    return json.dumps(res_list, ensure_ascii=False, indent=2), stats
+            except Exception:
+                pass
+
+            # 2. Try JSON Lines format
+            lines = [line.strip() for line in data.splitlines() if line.strip()]
+            if lines and lines[0].startswith("{") and lines[0].endswith("}"):
+                deduped_lines: list[str] = []
+                for line in lines:
+                    try:
+                        obj = json.loads(line)
+                        h = _calc_hash(obj)
+                    except Exception:
+                        h = hashlib.sha256(line.encode("utf-8")).hexdigest()
+                    if h in seen_hashes:
+                        duplicates_removed += 1
+                        continue
+                    seen_hashes.add(h)
+                    deduped_lines.append(line)
+                return "\n".join(deduped_lines) + "\n", {
+                    "duplicates_removed": duplicates_removed,
+                    "unique_records": len(deduped_lines),
+                }
+
+            # 3. Markdown / Plain text sections separated by headers or hr
+            sections = re.split(r"(?:\n---+?\n|\n\n(?=#{1,6}\s))", data)
+            if len(sections) > 1:
+                deduped_sections: list[str] = []
+                for sec in sections:
+                    clean_sec = sec.strip()
+                    if not clean_sec:
+                        continue
+                    h = hashlib.sha256(clean_sec.encode("utf-8")).hexdigest()
+                    if h in seen_hashes:
+                        duplicates_removed += 1
+                        continue
+                    seen_hashes.add(h)
+                    deduped_sections.append(clean_sec)
+                return "\n\n---\n\n".join(deduped_sections), {
+                    "duplicates_removed": duplicates_removed,
+                    "unique_records": len(deduped_sections),
+                }
+
+            return data, {"duplicates_removed": 0, "unique_records": 1}
+
+        return data, {"duplicates_removed": 0, "unique_records": 1}
+
     def _to_extracted_documents(
         self,
         data: Any,
@@ -453,6 +780,28 @@ class FileProcessorService:
         fallback_title: str = "Uploaded Document",
     ) -> list[ExtractedDocument]:
         """Convert input data (str, dict, list) into ExtractedDocument instances."""
+        if opts.get("pdf_pages"):
+            pdf_docs: list[ExtractedDocument] = []
+            for p in opts["pdf_pages"]:
+                p_num = p.get("page_number", 1)
+                p_txt = p.get("text", "").strip()
+                if not p_txt:
+                    continue
+                pdf_docs.append(
+                    ExtractedDocument(
+                        document_id=f"{uuid.uuid4().hex[:8]}_p{p_num}",
+                        url=f"https://crawlbot.local/file/{fallback_title}#page={p_num}",
+                        source_url=f"https://crawlbot.local/file/{fallback_title}#page={p_num}",
+                        title=f"{fallback_title} - صفحه {p_num}",
+                        content_text=p_txt,
+                        content_markdown=f"## صفحه {p_num}\n\n{p_txt}",
+                        word_count=len(p_txt.split()),
+                        character_count=len(p_txt),
+                    )
+                )
+            if pdf_docs:
+                return pdf_docs
+
         docs: list[ExtractedDocument] = []
 
         if isinstance(data, str):
@@ -618,6 +967,14 @@ class FileProcessorService:
         )
 
         all_chunks = chunker.chunk_documents(eligible, category=category)
+        for c in all_chunks:
+            if "#page=" in c.source_url:
+                try:
+                    p_num = int(c.source_url.split("#page=")[-1])
+                    c.page_number = p_num
+                    c.metadata["page_number"] = p_num
+                except (ValueError, IndexError):
+                    pass
         serialized_chunks = [c.model_dump() for c in all_chunks]
 
         applied_strategies = list({c.metadata.get("strategy") for c in all_chunks if c.metadata.get("strategy")})
@@ -629,6 +986,54 @@ class FileProcessorService:
             "applied_strategy": applied_str,
             "total_docs_chunked": len(eligible),
         }
+
+    async def _op_semantic_repair(
+        self,
+        data: Any,
+        fmt: str = "json",
+        opts: Optional[dict[str, Any]] = None,
+        fallback_title: str = "Uploaded Document",
+    ) -> tuple[Any, dict[str, Any]]:
+        """Audit and repair semantic inconsistencies in chunks or document data."""
+        opts = opts or {}
+        settings = get_settings()
+        api_key = (
+            opts.get("api_key")
+            or getattr(settings, "openai_api_key", None)
+            or os.getenv("NEXORA_OPENAI_API_KEY", "")
+            or os.getenv("CRAWLBOT_OPENAI_API_KEY", "")
+        )
+        base_url = opts.get("base_url") or settings.openai_base_url or None
+        model = opts.get("llm_model") or settings.llm_model or "gpt-4o-mini"
+        concurrency = opts.get("ai_concurrency") or getattr(settings, "ai_concurrency", 3)
+        apply_llm = bool(opts.get("apply_llm", True)) and bool(api_key and api_key.strip())
+        confidence = float(opts.get("confidence_threshold", 0.75))
+
+        repair_service = SemanticRepairService(
+            api_key=api_key.strip() if api_key and api_key.strip() else None,
+            base_url=base_url,
+            model=model,
+            concurrency=concurrency,
+            confidence_threshold=confidence,
+        )
+
+        try:
+            # Case 1: data is already a list of chunk dicts
+            if isinstance(data, list) and data and isinstance(data[0], dict) and ("text" in data[0] or "chunk_id" in data[0]):
+                chunks = [DocumentChunk.model_validate(c) for c in data]
+                repaired, report = await repair_service.repair_chunks(chunks, apply_llm=apply_llm)
+                return [c.model_dump() for c in repaired], report.model_dump()
+
+            # Case 2: data is raw text, string, or documents -> convert to ExtractedDocument, chunk, then repair
+            docs = self._to_extracted_documents(data, fmt, opts, fallback_title)
+            chunker = ChunkerService(strategy=opts.get("chunk_strategy", "auto"))
+            all_chunks = chunker.chunk_documents(docs)
+            repaired, report = await repair_service.repair_chunks(all_chunks, apply_llm=apply_llm)
+            return [c.model_dump() for c in repaired], report.model_dump()
+
+        except Exception as e:
+            logger.warning("Semantic repair failed: %s", e)
+            return data, {"warnings": [f"خطا در ترمیم معنایی قطعات: {str(e)}"]}
 
     def _op_metadata_enrich(self, data: Any, opts: dict[str, Any]) -> tuple[Any, dict[str, Any]]:
         """Add hashes, category inference, timestamps, and quality flags."""
@@ -682,13 +1087,14 @@ class FileProcessorService:
         api_key = (
             opts.get("api_key")
             or getattr(settings, "openai_api_key", None)
+            or os.getenv("NEXORA_OPENAI_API_KEY", "")
             or os.getenv("CRAWLBOT_OPENAI_API_KEY", "")
         )
 
         if not api_key or not api_key.strip():
             return data, {
                 "warnings": [
-                    "کلید API هوش مصنوعی (CRAWLBOT_OPENAI_API_KEY) تنظیم نشده است؛ عملیات بهینه‌سازی LLM رد شد."
+                    "کلید API هوش مصنوعی (NEXORA_OPENAI_API_KEY) تنظیم نشده است؛ عملیات بهینه‌سازی LLM رد شد."
                 ]
             }
 
@@ -785,13 +1191,14 @@ class FileProcessorService:
         api_key = (
             opts.get("api_key")
             or getattr(settings, "openai_api_key", None)
+            or os.getenv("NEXORA_OPENAI_API_KEY", "")
             or os.getenv("CRAWLBOT_OPENAI_API_KEY", "")
         )
 
         if not api_key or not api_key.strip():
             return data, {
                 "warnings": [
-                    "کلید API هوش مصنوعی (CRAWLBOT_OPENAI_API_KEY) برای تولید وکتور Embedding تنظیم نشده است."
+                    "کلید API هوش مصنوعی (NEXORA_OPENAI_API_KEY) برای تولید وکتور Embedding تنظیم نشده است."
                 ]
             }
 

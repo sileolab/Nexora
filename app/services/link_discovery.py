@@ -125,39 +125,135 @@ class LinkDiscovery:
         discovered_links: list[str] = []
         seen: set[str] = set()
 
-        for anchor in soup.find_all("a", href=True):
-            raw_href = anchor.get("href")
-            if not raw_href or not isinstance(raw_href, str):
-                continue
-
-            clean_href = raw_href.strip()
-            # Skip pure hash anchors or empty links
-            if not clean_href or clean_href.startswith("#"):
-                continue
-
+        def _add_candidate(raw: Optional[str]) -> None:
+            if not raw or not isinstance(raw, str):
+                return
+            clean = raw.strip()
+            if not clean or clean.startswith(("#", "javascript:", "mailto:", "tel:", "data:")):
+                return
             # Normalize against page_url
-            normalized = self.normalizer.normalize(clean_href, base_url=page_url)
+            normalized = self.normalizer.normalize(clean, base_url=page_url)
             if not normalized:
-                continue
-
-            # Check if this link points to a non-page file (images, docs, archives, assets)
+                return
+            # Check excluded extension
             try:
                 parsed_path = urlparse(normalized).path.lower()
                 _, ext = posixpath.splitext(parsed_path)
                 if ext in EXCLUDED_EXTENSIONS:
-                    continue
+                    return
+                # Skip framework asset/internal paths
+                if any(p in parsed_path for p in ("/_next/static/", "/_nuxt/", "/wp-json/oembed")):
+                    return
             except Exception:
-                continue
+                return
 
             # Filter to internal links only
             if not self.normalizer.is_internal(normalized, base_domain):
-                continue
+                return
 
             if normalized not in seen:
                 seen.add(normalized)
                 discovered_links.append(normalized)
 
+        # 1. Standard anchor links <a href="...">
+        for anchor in soup.find_all("a", href=True):
+            _add_candidate(anchor.get("href"))
+
+        # 2. Image map area links <area href="...">
+        for area in soup.find_all("area", href=True):
+            _add_candidate(area.get("href"))
+
+        # 3. Canonical and alternate links <link rel="canonical" ...>
+        for link_tag in soup.find_all("link", href=True):
+            rel = link_tag.get("rel", [])
+            rel_list = [r.lower() for r in (rel if isinstance(rel, list) else rel.split())]
+            if any(r in ("canonical", "alternate") for r in rel_list):
+                _add_candidate(link_tag.get("href"))
+
+        # 4. Interactive HTML elements with data-href or data-url attributes
+        for el in soup.find_all(attrs={"data-href": True}):
+            _add_candidate(el.get("data-href"))
+        for el in soup.find_all(attrs={"data-url": True}):
+            _add_candidate(el.get("data-url"))
+        for el in soup.find_all(attrs={"data-link": True}):
+            _add_candidate(el.get("data-link"))
+        for el in soup.find_all(attrs={"data-permalink": True}):
+            _add_candidate(el.get("data-permalink"))
+
+        # 5. SPA and Framework metadata (Next.js __NEXT_DATA__, JSON-LD, etc.)
+        self._extract_spa_and_json_links(soup, page_url, base_domain, _add_candidate)
+
         return discovered_links
+
+    def _extract_spa_and_json_links(
+        self,
+        soup: BeautifulSoup,
+        page_url: str,
+        base_domain: str,
+        add_candidate: Any,
+    ) -> None:
+        """Extract links embedded in SPA route manifests, Next.js hydration data, and JSON-LD."""
+        import json
+
+        # A. Next.js __NEXT_DATA__
+        next_data_tag = soup.find("script", id="__NEXT_DATA__")
+        if next_data_tag and next_data_tag.string:
+            try:
+                data = json.loads(next_data_tag.string)
+                self._crawl_json_for_links(data, add_candidate)
+            except Exception:
+                pass
+
+        # B. JSON-LD scripts (Schema.org BreadcrumbList, ItemList, Product, WebPage)
+        for script in soup.find_all("script", attrs={"type": "application/ld+json"}):
+            if script.string:
+                try:
+                    data = json.loads(script.string)
+                    self._crawl_json_for_links(data, add_candidate)
+                except Exception:
+                    pass
+
+        # C. Regex extraction for common SPA route paths in inline scripts
+        for script in soup.find_all("script"):
+            # Skip external script tags or next-data
+            if script.get("src") or script.get("id") == "__NEXT_DATA__":
+                continue
+            script_text = script.string or ""
+            if not script_text or len(script_text) > 100000:
+                continue
+
+            # Look for quoted route paths like "/product/..." or "/category/..." or "/mag/..."
+            route_matches = re.findall(
+                r'["\'](/(?:product|products|item|items|category|categories|tag|tags|brand|brands|blog|mag|article|articles|page|p|c)/[a-zA-Z0-9_\-\u0600-\u06FF/%]+)["\']',
+                script_text,
+            )
+            for m in route_matches[:100]:
+                add_candidate(m)
+
+    def _crawl_json_for_links(self, data: Any, add_candidate: Any, depth: int = 0) -> None:
+        """Recursively inspect parsed JSON structures for candidate URLs."""
+        if depth > 10:
+            return
+
+        if isinstance(data, dict):
+            for k, v in data.items():
+                if isinstance(v, str):
+                    k_lower = k.lower()
+                    if k_lower in ("url", "href", "aspath", "pathname", "canonical", "link", "targeturl", "item"):
+                        add_candidate(v)
+                    elif v.startswith(("http://", "https://", "/")) and not v.endswith((".js", ".css", ".png", ".jpg", ".svg", ".json")):
+                        # Check if string looks like an internal path
+                        if re.match(r"^/[a-zA-Z0-9_\-\u0600-\u06FF/%]+$", v):
+                            add_candidate(v)
+                elif isinstance(v, (dict, list)):
+                    self._crawl_json_for_links(v, add_candidate, depth + 1)
+        elif isinstance(data, list):
+            for item in data[:200]:
+                if isinstance(item, str):
+                    if item.startswith(("http://", "https://", "/")):
+                        add_candidate(item)
+                elif isinstance(item, (dict, list)):
+                    self._crawl_json_for_links(item, add_candidate, depth + 1)
 
     def extract_title(self, html: str) -> str | None:
         """Extract page title from HTML.

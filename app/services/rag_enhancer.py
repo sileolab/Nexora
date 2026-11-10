@@ -25,6 +25,7 @@ import asyncio
 import difflib
 import json
 import logging
+from app.core.security import sanitize_secret_leakage
 import re
 from typing import Any, Optional
 
@@ -1487,7 +1488,7 @@ class RAGEnhancer:
                     return {}, last_error, usage
                 continue
             except Exception as exc:  # noqa: BLE001 - provider SDKs raise many types
-                err_str = str(exc)
+                err_str = sanitize_secret_leakage(str(exc), secrets=[self.api_key])
                 low = err_str.lower()
                 last_error = err_str
 

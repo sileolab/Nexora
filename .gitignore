@@ -19,12 +19,32 @@ env/
 *.swp
 *.swo
 
-# Environment
+# Environment & Secrets
 .env
+.env.*
+!.env.example
+.secret_key
+*.key
 
-# Output
+# Data & Persistence
+data/
+data/*
+!data/.gitkeep
+*.sqlite
+*.db
+
+# Scratch & Temporary Dev Files
+scratch/
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Output & Logs
 output/
 logs/
+*.log
 
 # OS
 .DS_Store

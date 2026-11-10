@@ -23,6 +23,10 @@ class EngineResult:
     headings: list[Heading] = field(default_factory=list)
     links: list[LinkInfo] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
+    raw_html: Optional[str] = None
+    url: Optional[str] = None
+    status_code: Optional[int] = 200
+    cookies: dict[str, str] = field(default_factory=dict)
     char_count: int = 0
     word_count: int = 0
     latency_ms: float = 0.0

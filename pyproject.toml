@@ -1,13 +1,17 @@
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 
 [project]
-name = "crawlbot"
+name = "nexora"
 version = "1.0.0"
 description = "Universal Website Crawler & RAG Data Extraction Studio"
 requires-python = ">=3.10"
 license = {text = "MIT"}
+
+[project.scripts]
+nexora = "nexora.cli:main"
+crawlbot = "nexora.cli:main"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -18,4 +22,4 @@ python_functions = ["test_*"]
 addopts = "-v --tb=short"
 
 [tool.setuptools.packages.find]
-include = ["app*"]
+include = ["app*", "nexora*", "crawlbot*"]

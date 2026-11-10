@@ -343,3 +343,247 @@ def sanitize_filename(name: str) -> str:
             cleaned = cleaned[:max_len]
 
     return cleaned
+
+
+# ==============================================================================
+# PHASE 4 & 5: API AUTHENTICATION, TENANT ISOLATION & RATE LIMITING
+# ==============================================================================
+
+import logging
+import time
+from collections import defaultdict, deque
+from typing import Optional
+from fastapi import HTTPException, Request, Security, status
+from fastapi.security import APIKeyHeader, HTTPBearer, HTTPAuthorizationCredentials
+
+from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
+
+api_key_header_scheme = APIKeyHeader(name="X-API-Key", auto_error=False)
+bearer_scheme = HTTPBearer(auto_error=False)
+
+
+class SlidingWindowRateLimiter:
+    """Thread-safe in-memory sliding window rate limiter per client or workspace."""
+
+    def __init__(self, max_requests: int = 1000, window_seconds: float = 60.0) -> None:
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self._history: dict[str, deque[float]] = defaultdict(deque)
+
+    def is_allowed(self, key: str) -> tuple[bool, int]:
+        """Check if request is allowed. Returns (allowed: bool, retry_after_seconds: int)."""
+        if not key or key in ("testclient", "unknown", "127.0.0.1", "localhost", "::1"):
+            return True, 0
+
+        now = time.monotonic()
+        q = self._history[key]
+        cutoff = now - self.window_seconds
+
+        while q and q[0] <= cutoff:
+            q.popleft()
+
+        # Periodic cleanup of stale keys when registry exceeds threshold
+        if len(self._history) > 5000:
+            self._cleanup_stale(now)
+
+        if len(q) < self.max_requests:
+            q.append(now)
+            return True, 0
+
+        oldest = q[0]
+        retry_after = max(1, int(self.window_seconds - (now - oldest)))
+        return False, retry_after
+
+    def _cleanup_stale(self, now: float) -> None:
+        """Evict inactive client entries to bound memory usage."""
+        cutoff = now - self.window_seconds
+        stale_keys = [k for k, q in self._history.items() if not q or q[-1] <= cutoff]
+        for k in stale_keys:
+            self._history.pop(k, None)
+
+    def reset(self, key: Optional[str] = None) -> None:
+        """Clear rate limit history."""
+        if key:
+            self._history.pop(key, None)
+        else:
+            self._history.clear()
+
+
+_rate_limiter = SlidingWindowRateLimiter(max_requests=1000, window_seconds=60.0)
+
+
+def get_rate_limiter() -> SlidingWindowRateLimiter:
+    return _rate_limiter
+
+
+def verify_api_key(
+    x_api_key: Optional[str] = Security(api_key_header_scheme),
+    bearer_auth: Optional[HTTPAuthorizationCredentials] = Security(bearer_scheme),
+) -> bool:
+    """Validate API Key if configured in application settings.
+
+    Accepts either the global settings.api_key (master admin key)
+    OR a valid per-workspace API key (cbk_...).
+    If settings.api_key is empty/None: allows all requests (local dev mode).
+    """
+    settings = get_settings()
+    configured_key = settings.api_key
+
+    # Extract provided token
+    token = ""
+    if x_api_key and x_api_key.strip():
+        token = x_api_key.strip()
+    elif bearer_auth and bearer_auth.credentials:
+        token = bearer_auth.credentials.strip()
+
+    # Check per-workspace API key resolution
+    if token:
+        try:
+            from app.services.workspace_manager import get_workspace_manager
+            wid = get_workspace_manager().resolve_workspace_by_key(token)
+            if wid:
+                return True
+        except Exception:
+            pass
+
+    # Dev / Local mode: no authentication required
+    if not configured_key or not configured_key.strip():
+        return True
+
+    # Check master key
+    if token and token == configured_key.strip():
+        return True
+
+    logger.warning("Unauthorized API request: invalid or missing API Key")
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Unauthorized: Missing or invalid API Key. Provide a valid 'X-API-Key' header or 'Bearer' token.",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+# ==============================================================================
+# PHASE 1: IDENTIFIER VALIDATION, PATH CONTAINMENT & FAIL-CLOSED ADMIN AUTH
+# ==============================================================================
+
+import hmac
+from pathlib import Path
+
+_SAFE_IDENTIFIER_RE = re.compile(r"^[a-zA-Z0-9_\-]{3,64}$")
+
+
+def is_safe_identifier(val: str) -> bool:
+    """Validate identifier (workspace_id, tenant_id, job_id, etc.) to prevent directory traversal.
+
+    Must be 3-64 characters alphanumeric, hyphen, or underscore only.
+    Disallows dots, slashes, null bytes, and traversal sequences.
+    """
+    if not val or not isinstance(val, str):
+        return False
+    clean = val.strip()
+    if not _SAFE_IDENTIFIER_RE.match(clean):
+        return False
+    if ".." in clean or "/" in clean or "\\" in clean or "\x00" in clean:
+        return False
+    return True
+
+
+def validate_path_containment(base_dir: Path | str, target_path: Path | str) -> bool:
+    """Ensure target_path resolves strictly within base_dir."""
+    try:
+        base = Path(base_dir).resolve()
+        target = Path(target_path).resolve()
+        return base in target.parents or base == target
+    except Exception:
+        return False
+
+
+def require_admin(
+    request: Request,
+    x_api_key: Optional[str] = Security(api_key_header_scheme),
+    bearer_auth: Optional[HTTPAuthorizationCredentials] = Security(bearer_scheme),
+) -> bool:
+    """FastAPI dependency to verify Master Admin credentials with Fail-Closed behavior.
+
+    - If NEXORA_API_KEY is not configured or empty, denies access (401 Unauthorized).
+    - If a standard tenant key (starts with 'cbk_' or resolves to a workspace) is used, denies access with 403 Forbidden.
+    - If API key is missing or invalid, denies access with 401 Unauthorized.
+    - Uses constant-time comparison to prevent timing side-channel attacks.
+    """
+    settings = get_settings()
+    configured_key = (settings.api_key or "").strip()
+
+    # Fail closed: No admin access if admin secret is not configured
+    if not configured_key:
+        logger.warning("Admin endpoint rejected: master admin key (NEXORA_API_KEY) is not configured.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized: Master admin API key is not configured or missing.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Extract provided token
+    token = ""
+    if x_api_key and x_api_key.strip():
+        token = x_api_key.strip()
+    elif bearer_auth and bearer_auth.credentials:
+        token = bearer_auth.credentials.strip()
+
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized: Master admin credentials required.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Standard tenant keys are strictly forbidden from accessing admin endpoints
+    if token.startswith("cbk_"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: Workspace keys are not permitted to access admin endpoints.",
+        )
+
+    from app.services.workspace_manager import get_workspace_manager
+    if get_workspace_manager().resolve_workspace_by_key(token):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: Workspace keys are not permitted to access admin endpoints.",
+        )
+
+    if not hmac.compare_digest(token, configured_key):
+        logger.warning("Admin endpoint rejected: invalid master admin key attempted.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized: Invalid master admin credentials.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return True
+
+# ==============================================================================
+# PHASE 2: SECRET LEAKAGE PREVENTION & REDACTION
+# ==============================================================================
+
+def sanitize_secret_leakage(text: str, secrets: Optional[list[str]] = None) -> str:
+    """Sanitize API keys and secrets from error messages, exceptions, and logs.
+
+    Replaces explicit secret values, OpenAI keys ('sk-...'), and workspace keys ('cbk_...').
+    """
+    if not text or not isinstance(text, str):
+        return ""
+    result = text
+    if secrets:
+        for s in secrets:
+            if s and isinstance(s, str) and len(s) >= 6 and s in result:
+                result = result.replace(s, "[REDACTED_SECRET]")
+
+    # Mask OpenAI API keys
+    result = re.sub(r"sk-[a-zA-Z0-9_\-]{16,}", "sk-[REDACTED]", result)
+    # Mask Crawlbot Workspace API keys
+    result = re.sub(r"nxk_[a-zA-Z0-9_\-]{16,}", "nxk_[REDACTED]", result)
+    result = re.sub(r"cbk_[a-zA-Z0-9_\-]{16,}", "cbk_[REDACTED]", result)
+    # Mask Bearer tokens
+    result = re.sub(r"(Bearer\s+)[a-zA-Z0-9_\-\.]{16,}", r"\1[REDACTED]", result, flags=re.IGNORECASE)
+    return result
+

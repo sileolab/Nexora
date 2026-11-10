@@ -144,6 +144,10 @@ class DiscoveryRequest(BaseModel):
         default=None,
         description="Optional URL path prefix restriction (e.g. '/docs' or '/blog').",
     )
+    enable_browser_fallback: bool = Field(
+        default=True,
+        description="Whether to automatically launch headless Playwright browser when encountering JavaScript challenges or SPAs.",
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -156,6 +160,8 @@ class DiscoveryRequest(BaseModel):
                 data["max_concurrency"] = data["concurrency"]
             if "delay" in data and "delay_between_requests" not in data:
                 data["delay_between_requests"] = data["delay"]
+            if "browser_fallback" in data and "enable_browser_fallback" not in data:
+                data["enable_browser_fallback"] = data["browser_fallback"]
         return data
 
     @field_validator("root_url")
@@ -288,6 +294,10 @@ class ExtractionRequest(BaseModel):
         default=None,
         description="Optional CSS/XPath/JS selector to wait for before extracting dynamic content.",
     )
+    visible_only: bool = Field(
+        default=False,
+        description="استخراج فقط محتوای مرئی صفحه (حذف المان‌های پنهان، تب‌های غیرفعال و محتوای خارج از دید کاربر)",
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -311,6 +321,10 @@ class ExtractionRequest(BaseModel):
                 data["loading_delay"] = data["loading_wait"]
             if "wait_selector" in data and "wait_for_selector" not in data:
                 data["wait_for_selector"] = data["wait_selector"]
+            if "extract_visible_only" in data and "visible_only" not in data:
+                data["visible_only"] = data["extract_visible_only"]
+            if "visible" in data and "visible_only" not in data:
+                data["visible_only"] = data["visible"]
         return data
 
     @field_validator("urls")
@@ -361,6 +375,10 @@ class ExportRequest(BaseModel):
         default=None,
         description="Optional filter by document category.",
     )
+    deduplicate: bool = Field(
+        default=False,
+        description="حذف اسناد تکراری بر اساس محتوا پیش از صدور فایل",
+    )
 
     @field_validator("job_id")
     @classmethod
@@ -407,6 +425,7 @@ class SingleExtractRequest(BaseModel):
     timeout: float = Field(default=30.0, ge=1.0, le=120.0)
     loading_delay: float = Field(default=0.0, ge=0.0, le=60.0, description="Manual delay in seconds for loading screens.")
     wait_for_selector: Optional[str] = Field(default=None, description="Optional selector to wait for.")
+    visible_only: bool = Field(default=False, description="استخراج فقط محتوای مرئی صفحه (حذف تب‌های غیرفعال و المان‌های پنهان)")
 
     @field_validator("url")
     @classmethod
@@ -423,6 +442,7 @@ class CompareRequest(BaseModel):
     timeout: float = Field(default=30.0, ge=1.0, le=120.0)
     loading_delay: float = Field(default=0.0, ge=0.0, le=60.0, description="Manual delay in seconds for loading screens.")
     wait_for_selector: Optional[str] = Field(default=None, description="Optional selector to wait for.")
+    visible_only: bool = Field(default=False, description="استخراج فقط محتوای مرئی صفحه (حذف تب‌های غیرفعال و المان‌های پنهان)")
 
     @field_validator("url")
     @classmethod

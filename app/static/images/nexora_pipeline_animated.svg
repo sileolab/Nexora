@@ -1,0 +1,121 @@
+<svg fill="none" viewBox="0 0 1100 240" width="100%" xmlns="http://www.w3.org/2000/svg">
+  <foreignObject width="100%" height="100%">
+    <div xmlns="http://www.w3.org/1999/xhtml">
+      <style>
+        .pipeline-wrap {
+          background: #090e17;
+          border: 1px solid rgba(30, 41, 59, 0.9);
+          border-radius: 14px;
+          padding: 24px;
+          box-sizing: border-box;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          position: relative;
+          overflow: hidden;
+          box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
+        }
+        .stage-card {
+          flex: 1;
+          background: #111827;
+          border: 1px solid #1e293b;
+          border-radius: 10px;
+          padding: 16px 14px;
+          position: relative;
+          z-index: 2;
+          transition: transform 0.2s, border-color 0.2s;
+        }
+        .stage-card:hover {
+          transform: translateY(-3px);
+          border-color: #38bdf8;
+        }
+        .stage-num {
+          font-size: 11px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          margin-bottom: 6px;
+        }
+        .c-cyan { color: #38bdf8; }
+        .c-emerald { color: #34d399; }
+        .c-purple { color: #c084fc; }
+        .c-amber { color: #fbbf24; }
+        .c-blue { color: #60a5fa; }
+
+        .stage-name {
+          color: #f8fafc;
+          font-size: 14px;
+          font-weight: 700;
+          margin-bottom: 6px;
+        }
+        .stage-detail {
+          color: #94a3b8;
+          font-size: 11.5px;
+          line-height: 1.4;
+        }
+
+        .arrow-connector {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 32px;
+          position: relative;
+          z-index: 1;
+        }
+        .pulse-line {
+          width: 24px;
+          height: 2px;
+          background: linear-gradient(90deg, #1e293b, #38bdf8, #1e293b);
+          background-size: 200% 100%;
+          animation: flowPulse 2s linear infinite;
+        }
+        @keyframes flowPulse {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+      </style>
+      <div class="pipeline-wrap">
+        
+        <div class="stage-card">
+          <div class="stage-num c-cyan">STAGE 01</div>
+          <div class="stage-name">Autonomous Crawl</div>
+          <div class="stage-detail">Sitemap XML, Robots.txt, BFS/DFS traversal &amp; hop guards.</div>
+        </div>
+
+        <div class="arrow-connector"><div class="pulse-line"></div></div>
+
+        <div class="stage-card">
+          <div class="stage-num c-emerald">STAGE 02</div>
+          <div class="stage-name">4-Engine Extract</div>
+          <div class="stage-detail">Playwright Chromium, Crawl4AI, Trafilatura &amp; Smart Auto.</div>
+        </div>
+
+        <div class="arrow-connector"><div class="pulse-line"></div></div>
+
+        <div class="stage-card">
+          <div class="stage-num c-purple">STAGE 03</div>
+          <div class="stage-name">Semantic Chunking</div>
+          <div class="stage-detail">Persian/Multilingual normalization, sentence boundaries &amp; repair.</div>
+        </div>
+
+        <div class="arrow-connector"><div class="pulse-line"></div></div>
+
+        <div class="stage-card">
+          <div class="stage-num c-amber">STAGE 04</div>
+          <div class="stage-name">Hybrid Vector Index</div>
+          <div class="stage-detail">Dense 1536-D embeddings + BM25 Lexical with RRF fusion.</div>
+        </div>
+
+        <div class="arrow-connector"><div class="pulse-line"></div></div>
+
+        <div class="stage-card">
+          <div class="stage-num c-blue">STAGE 05</div>
+          <div class="stage-name">IR Evaluation</div>
+          <div class="stage-detail">Recall@K, MRR, nDCG@K benchmarks &amp; candidate trace.</div>
+        </div>
+
+      </div>
+    </div>
+  </foreignObject>
+</svg>

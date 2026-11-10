@@ -27,6 +27,10 @@ PAGE_TYPE_PRODUCT = "product"
 PAGE_TYPE_FAQ = "faq"
 PAGE_TYPE_ABOUT = "about"
 PAGE_TYPE_CONTACT = "contact"
+PAGE_TYPE_RESUME = "resume"
+PAGE_TYPE_SERVICES = "services"
+PAGE_TYPE_SKILLS = "skills"
+PAGE_TYPE_PORTFOLIO = "portfolio"
 PAGE_TYPE_SPA = "spa"
 PAGE_TYPE_DASHBOARD = "dashboard"
 PAGE_TYPE_FILE = "file"
@@ -40,6 +44,10 @@ VALID_PAGE_TYPES = {
     PAGE_TYPE_FAQ,
     PAGE_TYPE_ABOUT,
     PAGE_TYPE_CONTACT,
+    PAGE_TYPE_RESUME,
+    PAGE_TYPE_SERVICES,
+    PAGE_TYPE_SKILLS,
+    PAGE_TYPE_PORTFOLIO,
     PAGE_TYPE_SPA,
     PAGE_TYPE_DASHBOARD,
     PAGE_TYPE_FILE,
@@ -52,15 +60,19 @@ FILE_EXTENSIONS = (
     ".docx", ".doc", ".pptx", ".ppt", ".mp3", ".mp4", ".epub",
 )
 
-# URL path regex patterns
+# URL path regex patterns (multilingual EN & FA support)
 URL_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"/(?:docs|documentation|guide|guides|manual|api-reference|reference|tutorial|sdk|wiki)(?:/|$)", re.I), PAGE_TYPE_DOCS),
     (re.compile(r"/(?:blog|post|posts|article|articles|news|journal|press-release|story)(?:/|$|\.html?)", re.I), PAGE_TYPE_ARTICLE),
-    (re.compile(r"/(?:faq|faqs|frequently-asked-questions|qna|help-center|knowledgebase)(?:/|$)", re.I), PAGE_TYPE_FAQ),
-    (re.compile(r"/(?:terms|privacy|policy|legal|disclaimer|tos|user-agreement|cookie-policy)(?:/|$|\.html?)", re.I), PAGE_TYPE_POLICY),
-    (re.compile(r"/(?:product|products|item|items|shop|store|goods|detail|p)/", re.I), PAGE_TYPE_PRODUCT),
-    (re.compile(r"/(?:about|about-us|team|who-we-are|company|our-story)(?:/|$|\.html?)", re.I), PAGE_TYPE_ABOUT),
-    (re.compile(r"/(?:contact|contact-us|support|get-in-touch|reach-us)(?:/|$|\.html?)", re.I), PAGE_TYPE_CONTACT),
+    (re.compile(r"/(?:faq|faqs|frequently-asked-questions|qna|help-center|knowledgebase|سوالات-متداول)(?:/|$)", re.I), PAGE_TYPE_FAQ),
+    (re.compile(r"/(?:terms|privacy|policy|legal|disclaimer|tos|user-agreement|cookie-policy|قوانین|حریم-خصوصی)(?:/|$|\.html?)", re.I), PAGE_TYPE_POLICY),
+    (re.compile(r"/(?:product|products|item|items|shop|store|goods|detail|p|محصول|محصولات)/", re.I), PAGE_TYPE_PRODUCT),
+    (re.compile(r"/(?:resume|cv|curriculum-vitae|career|experience|سوابق|رزومه)(?:/|$|\.html?)", re.I), PAGE_TYPE_RESUME),
+    (re.compile(r"/(?:services|service|solutions|offerings|خدمات)(?:/|$|\.html?)", re.I), PAGE_TYPE_SERVICES),
+    (re.compile(r"/(?:skills|expertise|technologies|stack|مهارت|مهارت-ها|مهارت‌ها)(?:/|$|\.html?)", re.I), PAGE_TYPE_SKILLS),
+    (re.compile(r"/(?:portfolio|projects|project|works|case-studies|نمونه-کار|نمونه-کارها|نمونه‌کارها)(?:/|$|\.html?)", re.I), PAGE_TYPE_PORTFOLIO),
+    (re.compile(r"/(?:about|about-us|team|who-we-are|company|our-story|درباره|درباره-من|درباره-ما)(?:/|$|\.html?)", re.I), PAGE_TYPE_ABOUT),
+    (re.compile(r"/(?:contact|contact-us|support|get-in-touch|reach-us|تماس|تماس-با-ما)(?:/|$|\.html?)", re.I), PAGE_TYPE_CONTACT),
     (re.compile(r"/(?:dashboard|console|portal|admin|signin|signup|login|logout|app)(?:/|$)", re.I), PAGE_TYPE_DASHBOARD),
 ]
 
@@ -124,6 +136,10 @@ class PageClassifier:
             return PAGE_TYPE_FAQ
         if any(t in schema_type for t in ["article", "blogposting", "newsarticle", "techarticle"]):
             return PAGE_TYPE_ARTICLE
+        if any(t in schema_type for t in ["profilepage", "person"]):
+            return PAGE_TYPE_RESUME
+        if "service" in schema_type:
+            return PAGE_TYPE_SERVICES
         if "aboutpage" in schema_type:
             return PAGE_TYPE_ABOUT
         if "contactpage" in schema_type:
@@ -132,6 +148,8 @@ class PageClassifier:
             return PAGE_TYPE_ARTICLE
         if og_type == "product":
             return PAGE_TYPE_PRODUCT
+        if og_type == "profile":
+            return PAGE_TYPE_RESUME
 
         return None
 
@@ -199,7 +217,22 @@ class PageClassifier:
             if pattern.search(path):
                 return page_type
 
-        # G. Article signals: substantial body text with multiple paragraphs and h1
+        # G. Content signals for Resume / CV / Skills / Portfolio / Services / Contact
+        headings_text = " ".join(h.get_text(" ", strip=True).lower() for h in soup.find_all(re.compile(r"^h[1-6]$")))
+        combined_signals = (headings_text + " " + body_text[:2000]).lower()
+
+        if re.search(r"(?:سوابق کاری|تحصیلات|تجربه‌ها|سوابق شغلی|curriculum vitae|\bresume\b|\bcv\b)", headings_text):
+            return PAGE_TYPE_RESUME
+        if re.search(r"(?:مهارت‌ها|مهارت ها|مهارت‌های برنامه‌نویسی|\bskills\b|programming languages)", headings_text):
+            return PAGE_TYPE_SKILLS
+        if re.search(r"(?:نمونه‌کارها|نمونه کار|پروژه‌ها|\bportfolio\b|\bprojects\b)", headings_text):
+            return PAGE_TYPE_PORTFOLIO
+        if re.search(r"(?:خدمات ما|خدمات|سرویس‌ها|\bservices\b|\bour services\b)", headings_text):
+            return PAGE_TYPE_SERVICES
+        if re.search(r"(?:تماس با ما|فرم تماس|\bcontact us\b|\bget in touch\b)", headings_text):
+            return PAGE_TYPE_CONTACT
+
+        # H. Article signals: substantial body text with multiple paragraphs and h1
         h1s = soup.find_all("h1")
         paragraphs = soup.find_all("p")
         if len(paragraphs) >= 4 and len(h1s) >= 1 and text_len > 600:

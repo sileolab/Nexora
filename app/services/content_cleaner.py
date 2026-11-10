@@ -72,6 +72,12 @@ class ContentCleaner:
     # Tags that are inherently structural boilerplate in standard web layouts
     SEMANTIC_BOILERPLATE_TAGS: Final[list[str]] = ["nav", "footer", "aside"]
 
+    PLACEHOLDER_TEXT_PATTERNS: Final[list[re.Pattern[str]]] = [
+        re.compile(r"^\s*محتوای\s+فرم\s+توسط\s+JS\s+در\s+اینجا\s+تزریق\s+می‌?شود\s*$", re.IGNORECASE),
+        re.compile(r"^\s*(?:javascript\s+is\s+required\s+to\s+view\s+this\s+page|please\s+enable\s+javascript(?:\s+to\s+view\s+this\s+page)?)\s*$", re.IGNORECASE),
+        re.compile(r"^\s*(?:loading\.{2,}|در\s+حال\s+بارگذاری\.{2,}|لطفاً\s+صبر\s+کنید\.{2,})\s*$", re.IGNORECASE),
+    ]
+
     def __init__(self) -> None:
         """Initialize ContentCleaner with compiled regex patterns."""
         # Precompile class and ID regexes for performance
@@ -123,7 +129,10 @@ class ContentCleaner:
         # 4. Remove hidden elements
         self._remove_hidden_elements(soup)
 
-        # 5. Extract main content area if identifiable
+        # 5. Remove residual placeholder artifacts (e.g. JS injection notices)
+        self._remove_placeholder_artifacts(soup)
+
+        # 6. Extract main content area if identifiable
         main_content = self._find_main_content(soup)
         if main_content is not None:
             return str(main_content)
@@ -258,6 +267,54 @@ class ContentCleaner:
         for el in elements_to_remove:
             if el.parent is not None:
                 el.decompose()
+
+    def _remove_placeholder_artifacts(self, soup: BeautifulSoup) -> None:
+        """Remove empty or placeholder artifact elements that contain no real user content.
+
+        Specifically targets residual JavaScript placeholders (e.g.
+        'محتوای فرم توسط JS در اینجا تزریق می‌شود') without affecting valid text.
+        """
+        for el in list(soup.find_all(True)):
+            if not isinstance(el, Tag) or el.parent is None:
+                continue
+            if el.name in ("html", "body", "main", "article"):
+                continue
+            txt = el.get_text(strip=True)
+            if not txt:
+                continue
+            for pat in self.PLACEHOLDER_TEXT_PATTERNS:
+                if pat.match(txt):
+                    el.decompose()
+                    break
+
+    @classmethod
+    def clean_text_artifacts(cls, text: str) -> tuple[str, list[str]]:
+        """Remove artificial placeholder lines and extraction residue from text.
+
+        Returns:
+            Tuple of (cleaned_text, list_of_removed_artifacts).
+        """
+        if not text:
+            return "", []
+
+        lines = text.split("\n")
+        kept_lines: list[str] = []
+        removed: list[str] = []
+
+        for line in lines:
+            trimmed = line.strip()
+            is_artifact = False
+            for pat in cls.PLACEHOLDER_TEXT_PATTERNS:
+                if pat.match(trimmed):
+                    removed.append(trimmed)
+                    is_artifact = True
+                    break
+            if not is_artifact:
+                kept_lines.append(line)
+
+        cleaned = "\n".join(kept_lines)
+        cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+        return cleaned, removed
 
     def normalize_whitespace(self, text: str) -> str:
         """Normalize whitespace by collapsing multiple spaces, tabs, and excess newlines.
