@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexora Python SDK Documentation | Official Developer Guide</title>
+  <link rel="icon" type="image/svg+xml" href="/static/images/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    :root {
+      --bg-base: #060911;
+      --bg-surface: #0b0f19;
+      --bg-card: #0f172a;
+      --bg-card-hover: #172033;
+      --border-subtle: #1e293b;
+      --border-focus: #06b6d4;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --primary: #06b6d4;
+      --primary-hover: #0891b2;
+      --primary-glow: rgba(6, 182, 212, 0.15);
+      --accent-green: #10b981;
+      --accent-green-glow: rgba(16, 185, 129, 0.15);
+      --accent-amber: #f59e0b;
+      --accent-purple: #8b5cf6;
+      --accent-rose: #f43f5e;
+      --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+      --sidebar-width: 310px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      line-height: 1.6;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Top Navigation Bar */
+    .sdk-navbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      height: 64px;
+      background: rgba(11, 15, 25, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 1.75rem;
+    }
+    .navbar-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: inherit;
+    }
+    .brand-logo-badge {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 800;
+      font-size: 1.1rem;
+      box-shadow: 0 0 16px rgba(6, 182, 212, 0.35);
+    }
+    .brand-title-group h1 {
+      font-size: 1.05rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .version-tag {
+      background: rgba(6, 182, 212, 0.15);
+      color: var(--primary);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 9999px;
+      font-family: var(--font-mono);
+    }
+
+    .navbar-search {
+      position: relative;
+      width: 380px;
+    }
+    .navbar-search i {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-dim);
+      font-size: 0.85rem;
+    }
+    .search-input {
+      width: 100%;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 7px 12px 7px 34px;
+      color: var(--text-main);
+      font-size: 0.85rem;
+      font-family: inherit;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+    .search-input:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 12px var(--primary-glow);
+    }
+    .search-kbd {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-size: 0.68rem;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+    }
+
+    .navbar-links {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .nav-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 0.825rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s ease;
+    }
+    .nav-btn-secondary {
+      background: var(--bg-surface);
+      color: var(--text-muted);
+      border: 1px solid var(--border-subtle);
+    }
+    .nav-btn-secondary:hover {
+      color: var(--text-main);
+      border-color: var(--text-muted);
+    }
+    .nav-btn-primary {
+      background: rgba(6, 182, 212, 0.15);
+      color: var(--primary);
+      border: 1px solid rgba(6, 182, 212, 0.4);
+    }
+    .nav-btn-primary:hover {
+      background: var(--primary);
+      color: #000;
+      font-weight: 700;
+    }
+
+    /* Layout Container */
+    .sdk-layout {
+      display: flex;
+      flex: 1;
+      max-width: 1680px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* Sidebar Navigation */
+    .sdk-sidebar {
+      width: var(--sidebar-width);
+      flex-shrink: 0;
+      border-right: 1px solid var(--border-subtle);
+      background: var(--bg-surface);
+      height: calc(100vh - 64px);
+      position: sticky;
+      top: 64px;
+      overflow-y: auto;
+      padding: 1.5rem 1rem 3rem 1.25rem;
+    }
+    .sidebar-section-title {
+      font-size: 0.72rem;
+      font-weight: 800;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin: 1.25rem 0 0.5rem 0.5rem;
+    }
+    .sidebar-section-title:first-child { margin-top: 0; }
+    .sidebar-nav-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .sidebar-nav-link {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px;
+      border-radius: 6px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.825rem;
+      font-weight: 500;
+      transition: all 0.15s ease;
+    }
+    .sidebar-nav-link:hover {
+      background: var(--bg-card-hover);
+      color: var(--text-main);
+      transform: translateX(2px);
+    }
+    .sidebar-nav-link.active {
+      background: rgba(6, 182, 212, 0.12);
+      color: var(--primary);
+      font-weight: 700;
+      border-left: 2px solid var(--primary);
+    }
+    .sidebar-nav-badge {
+      font-size: 0.65rem;
+      font-family: var(--font-mono);
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: var(--bg-card);
+      color: var(--text-dim);
+    }
+    .sidebar-nav-badge.live {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent-green);
+      font-weight: 700;
+    }
+    .sidebar-nav-badge.ai {
+      background: rgba(139, 92, 246, 0.15);
+      color: var(--accent-purple);
+      font-weight: 700;
+    }
+
+    /* Main Content Area */
+    .sdk-content {
+      flex: 1;
+      min-width: 0;
+      padding: 2.5rem 3rem 5rem;
+      max-width: 1080px;
+    }
+
+    /* Hero Banner */
+    .sdk-hero {
+      background: linear-gradient(135deg, rgba(6, 182, 212, 0.08) 0%, rgba(15, 23, 42, 0.6) 100%);
+      border: 1px solid rgba(6, 182, 212, 0.25);
+      border-radius: 12px;
+      padding: 2.25rem 2.5rem;
+      margin-bottom: 3rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .sdk-hero::after {
+      content: '';
+      position: absolute;
+      right: -40px;
+      top: -40px;
+      width: 220px;
+      height: 220px;
+      background: radial-gradient(circle, rgba(6, 182, 212, 0.15) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .sdk-hero-title {
+      font-size: 2.1rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .sdk-hero-title i { color: var(--primary); }
+    .sdk-hero-desc {
+      font-size: 1.05rem;
+      color: var(--text-muted);
+      max-width: 780px;
+      line-height: 1.6;
+    }
+    .sdk-hero-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 1.25rem;
+    }
+    .hero-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 9999px;
+      padding: 4px 12px;
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+    }
+    .hero-pill strong { color: var(--text-main); }
+
+    /* Documentation Headings & Prose */
+    h2.sdk-heading {
+      font-size: 1.6rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin: 3.5rem 0 1rem;
+      padding-bottom: 0.6rem;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    h2.sdk-heading .heading-icon {
+      color: var(--primary);
+      font-size: 1.3rem;
+    }
+    h3.sdk-subheading {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin: 1.75rem 0 0.75rem;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    p {
+      color: var(--text-muted);
+      margin-bottom: 1.1rem;
+      font-size: 0.95rem;
+    }
+    strong { color: var(--text-main); }
+
+    /* Code Blocks */
+    .code-card {
+      background: #080c14;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      margin: 1.25rem 0 2rem;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+    .code-card-header {
+      background: #0d121f;
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .code-card-title {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-copy-code {
+      background: transparent;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      border-radius: 4px;
+      padding: 3px 8px;
+      font-size: 0.72rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+      font-family: inherit;
+    }
+    .btn-copy-code:hover {
+      background: var(--bg-card);
+      color: var(--text-main);
+      border-color: var(--text-muted);
+    }
+    .btn-copy-code.copied {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent-green);
+      border-color: var(--accent-green);
+    }
+    pre.code-block {
+      padding: 1.25rem 1.5rem;
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      line-height: 1.65;
+      color: #e2e8f0;
+    }
+    /* Syntax Highlighting Tokens */
+    .token-keyword { color: #f43f5e; font-weight: 600; }
+    .token-func { color: #38bdf8; font-weight: 600; }
+    .token-string { color: #a5f3fc; }
+    .token-comment { color: #64748b; font-style: italic; }
+    .token-number { color: #fbbf24; }
+    .token-param { color: #f8fafc; }
+    .token-punct { color: #94a3b8; }
+
+    /* Parameters & Return Value Tables */
+    .table-container {
+      overflow-x: auto;
+      margin: 1.25rem 0 1.75rem;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+    }
+    table.spec-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      text-align: left;
+    }
+    table.spec-table th {
+      background: var(--bg-surface);
+      color: var(--text-main);
+      font-weight: 700;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    table.spec-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: var(--text-muted);
+      vertical-align: top;
+    }
+    table.spec-table tr:last-child td { border-bottom: none; }
+    table.spec-table code {
+      font-family: var(--font-mono);
+      color: var(--primary);
+      background: rgba(6, 182, 212, 0.1);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+    }
+
+    /* Callout Alerts */
+    .callout {
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin: 1.5rem 0;
+      display: flex;
+      gap: 12px;
+      font-size: 0.88rem;
+    }
+    .callout-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 2px; }
+    .callout-tip {
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #a7f3d0;
+    }
+    .callout-tip .callout-icon { color: var(--accent-green); }
+    .callout-info {
+      background: rgba(6, 182, 212, 0.08);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      color: #bae6fd;
+    }
+    .callout-info .callout-icon { color: var(--primary); }
+    .callout-warning {
+      background: rgba(245, 158, 11, 0.08);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      color: #fde68a;
+    }
+    .callout-warning .callout-icon { color: var(--accent-amber); }
+
+    /* Blueprint Cards Grid */
+    .blueprint-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin: 1.5rem 0 2.5rem;
+    }
+    .blueprint-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 1.5rem;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .blueprint-card:hover {
+      border-color: var(--primary);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(6, 182, 212, 0.1);
+    }
+    .blueprint-badge {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-bottom: 0.75rem;
+      font-family: var(--font-mono);
+    }
+
+    /* Scroll to Top Button */
+    .btn-scroll-top {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.2s ease;
+      z-index: 90;
+    }
+    .btn-scroll-top.visible { opacity: 1; visibility: visible; }
+    .btn-scroll-top:hover {
+      background: var(--primary);
+      color: #000;
+      border-color: var(--primary);
+    }
+
+    /* Responsive */
+    @media (max-width: 960px) {
+      .sdk-sidebar { display: none; }
+      .navbar-search { display: none; }
+      .sdk-content { padding: 1.5rem 1rem 3rem; }
+      .blueprint-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation Bar -->
+  <header class="sdk-navbar">
+    <a href="/" class="navbar-brand">
+      <div class="brand-logo-badge">N</div>
+      <div class="brand-title-group">
+        <h1>Nexora Python SDK <span class="version-tag">v4.0.0</span></h1>
+      </div>
+    </a>
+
+    <div class="navbar-search">
+      <i class="fa-solid fa-magnifying-glass"></i>
+      <input type="text" class="search-input" id="search-input" placeholder="Search methods, models & blueprints...">
+      <span class="search-kbd">Ctrl+K</span>
+    </div>
+
+    <div class="navbar-links">
+      <a href="/docs" class="nav-btn nav-btn-secondary" title="View REST API Documentation">
+        <i class="fa-solid fa-code"></i> REST API Docs
+      </a>
+      <a href="/" class="nav-btn nav-btn-primary" title="Open Nexora Web Studio">
+        <i class="fa-solid fa-layer-group"></i> Main Studio
+      </a>
+    </div>
+  </header>
+
+  <!-- Layout Container -->
+  <div class="sdk-layout">
+
+    <!-- Sticky Sidebar Navigation -->
+    <aside class="sdk-sidebar">
+      <div class="sidebar-section-title">Getting Started</div>
+      <ul class="sidebar-nav-list">
+        <li><a href="#overview" class="sidebar-nav-link active"><span>Overview & Architecture</span></a></li>
+        <li><a href="#installation" class="sidebar-nav-link"><span>Installation & Setup</span> <span class="sidebar-nav-badge">pip</span></a></li>
+        <li><a href="#client-init" class="sidebar-nav-link"><span>NexoraClient Initialization</span></a></li>
+        <li><a href="#auth-byok" class="sidebar-nav-link"><span>Auth & BYOK Settings</span></a></li>
+      </ul>
+
+      <div class="sidebar-section-title">Core Operations</div>
+      <ul class="sidebar-nav-list">
+        <li><a href="#crawling" class="sidebar-nav-link"><span>URL Discovery & Crawling</span></a></li>
+        <li><a href="#extraction" class="sidebar-nav-link"><span>Multi-Engine Extraction</span></a></li>
+        <li><a href="#stealth" class="sidebar-nav-link"><span>Anti-Bot Stealth Engine</span></a></li>
+        <li><a href="#jobs" class="sidebar-nav-link"><span>Jobs & Background Tasks</span></a></li>
+        <li><a href="#files" class="sidebar-nav-link"><span>File Ingestion (PDF/Word/etc)</span></a></li>
+      </ul>
+
+      <div class="sidebar-section-title">AI & RAG Pipeline</div>
+      <ul class="sidebar-nav-list">
+        <li><a href="#chunking" class="sidebar-nav-link"><span>Semantic Chunking</span> <span class="sidebar-nav-badge ai">AI</span></a></li>
+        <li><a href="#repair" class="sidebar-nav-link"><span>Semantic Repair</span> <span class="sidebar-nav-badge ai">AI</span></a></li>
+        <li><a href="#embeddings" class="sidebar-nav-link"><span>Vector Embeddings</span></a></li>
+        <li><a href="#search" class="sidebar-nav-link"><span>Hybrid Search (BM25 + Dense)</span></a></li>
+        <li><a href="#vector-export" class="sidebar-nav-link"><span>Vector DB Export (Qdrant/Chroma)</span></a></li>
+        <li><a href="#quality" class="sidebar-nav-link"><span>Quality & IR Evaluation</span></a></li>
+        <li><a href="#sync" class="sidebar-nav-link"><span>Incremental Crawl Sync</span></a></li>
+      </ul>
+
+      <div class="sidebar-section-title">Live & Real-Time</div>
+      <ul class="sidebar-nav-list">
+        <li><a href="#live-overview" class="sidebar-nav-link"><span>Live Watchers & Auto-Detect</span> <span class="sidebar-nav-badge live">LIVE</span></a></li>
+        <li><a href="#live-streaming" class="sidebar-nav-link"><span>Real-Time SSE Streaming</span> <span class="sidebar-nav-badge live">SSE</span></a></li>
+        <li><a href="#live-single-trigger" class="sidebar-nav-link"><span>Single-Trigger & Auto-Stop</span></a></li>
+      </ul>
+
+      <div class="sidebar-section-title">Production Blueprints</div>
+      <ul class="sidebar-nav-list">
+        <li><a href="#blueprint-crypto" class="sidebar-nav-link"><span>1. Crypto / Ticker Arbitrage Bot</span></a></li>
+        <li><a href="#blueprint-rag" class="sidebar-nav-link"><span>2. Enterprise RAG Assistant</span></a></li>
+        <li><a href="#blueprint-pricing" class="sidebar-nav-link"><span>3. Competitor Price Tracker</span></a></li>
+        <li><a href="#blueprint-flash-sale" class="sidebar-nav-link"><span>4. Stock Availability Sniper</span></a></li>
+      </ul>
+
+      <div class="sidebar-section-title">Reference</div>
+      <ul class="sidebar-nav-list">
+        <li><a href="#exceptions" class="sidebar-nav-link"><span>Exception Hierarchy</span></a></li>
+      </ul>
+    </aside>
+
+    <!-- Main Content Canvas -->
+    <main class="sdk-content">
+
+      <!-- Hero Banner -->
+      <div class="sdk-hero">
+        <h1 class="sdk-hero-title"><i class="fa-brands fa-python"></i> Nexora Python SDK Reference</h1>
+        <p class="sdk-hero-desc">
+          Official, production-grade Python client for the Nexora Studio & Data Engineering Platform.
+          Automate large-scale web crawling, multi-engine content extraction, anti-bot bypass,
+          semantic RAG vector pipelines, and autonomous real-time live extraction with clean Pythonic APIs.
+        </p>
+        <div class="sdk-hero-badges">
+          <span class="hero-pill"><i class="fa-solid fa-cube"></i> Package: <strong>nexora</strong></span>
+          <span class="hero-pill"><i class="fa-solid fa-code-branch"></i> Version: <strong>4.0.0</strong></span>
+          <span class="hero-pill"><i class="fa-solid fa-microchip"></i> Python: <strong>>= 3.9</strong></span>
+          <span class="hero-pill"><i class="fa-solid fa-shield-halved"></i> Thread-Safe: <strong>Yes</strong></span>
+          <span class="hero-pill"><i class="fa-solid fa-bolt"></i> Async & Sync: <strong>Supported</strong></span>
+        </div>
+      </div>
+
+      <!-- Section: Overview & Architecture -->
+      <section id="overview" class="doc-section">
+        <h2 class="sdk-heading"><i class="fa-solid fa-compass heading-icon"></i> Overview & Architecture</h2>
+        <p>
+          The <code>nexora</code> Python package provides a cohesive, developer-friendly interface to all platform services.
+          Instead of stitching together dozens of disparate scraping libraries, proxy managers, text cleaners, chunkers, and embedding providers,
+          Nexora unifies the entire lifecycle under a single client:
+        </p>
+
+        <div class="blueprint-grid">
+          <div class="blueprint-card">
+            <div>
+              <span class="blueprint-badge" style="background:rgba(6,182,212,0.15); color:var(--primary);">Web & Live Ingestion</span>
+              <h3 style="font-size:1.05rem; margin-bottom:0.5rem; color:#fff;">Multi-Engine Web & Live Watchers</h3>
+              <p style="font-size:0.85rem; margin:0;">
+                Smart cascaded routing across Playwright, Crawl4AI, and Trafilatura, plus <strong>Live Watchers</strong> with autonomous dynamic field mutation detection.
+              </p>
+            </div>
+          </div>
+          <div class="blueprint-card">
+            <div>
+              <span class="blueprint-badge" style="background:rgba(139,92,246,0.15); color:var(--accent-purple);">RAG Engineering</span>
+              <h3 style="font-size:1.05rem; margin-bottom:0.5rem; color:#fff;">Semantic AI & Hybrid Search</h3>
+              <p style="font-size:0.85rem; margin:0;">
+                Semantic boundary chunking, grammatical smoothing, vector embeddings (OpenAI, Gemini, Ollama, DeepSeek), and hybrid BM25 + dense retrieval.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section: Installation & Setup -->
+      <section id="installation" class="doc-section">
+        <h2 class="sdk-heading"><i class="fa-solid fa-download heading-icon"></i> Installation & Setup</h2>
+        <p>Install the library directly in your Python environment or virtualenv:</p>
+
+        <div class="code-card">
+          <div class="code-card-header">
+            <span class="code-card-title"><i class="fa-solid fa-terminal"></i> Terminal / Bash</span>
+            <button class="btn-copy-code" onclick="copyCode(this)"><i class="fa-regular fa-copy"></i> Copy</button>
+          </div>
+          <pre class="code-block"><code><span class="token-comment"># Install in development/editable mode from repository root:</span>
+pip install -e .
+
+<span class="token-comment"># Or install with optional headless browser automation dependencies:</span>
+pip install "nexora[playwright]"
+playwright install chromium</code></pre>
+        </div>
+
+        <div class="callout callout-tip">
+          <i class="fa-solid fa-lightbulb callout-icon"></i>
+          <div>
+            <strong>Backward Compatibility Note:</strong>
+            Existing code importing <code>from nexora.client import CrawlbotClient</code> continues to work seamlessly as a drop-in alias for <code>NexoraClient</code>.
+          </div>
+        </div>
+      </section>
+
+      <!-- Section: Client Initialization -->
+      <section id="client-init" class="doc-section">
+        <h2 class="sdk-heading"><i class="fa-solid fa-key heading-icon"></i> NexoraClient Initialization</h2>
+        <p>Instantiate <code>NexoraClient</code> by pointing to your local or hosted Nexora server instance:</p>
+
+        <div class="code-card">
+          <div class="code-card-header">
+            <span class="code-card-title"><i class="fa-brands fa-python"></i> Python 3</span>
+            <button class="btn-copy-code" onclick="copyCode(this)"><i class="fa-regular fa-copy"></i> Copy</button>
+          </div>
+          <pre class="code-block"><code><span class="token-keyword">from</span> nexora <span class="token-keyword">import</span> NexoraClient
+
+<span class="token-comment"># 1. Default local server connection</span>
+client = NexoraClient(base_url=<span class="token-string">"http://127.0.0.1:8000"</span>)
+
+<span class="token-comment"># 2. Production setup with API Key, custom timeout and tenant workspace</span>
+client = NexoraClient(
+    base_url=<span class="token-string">"https://api.nexora.internal"</span>,
+    api_key=<span class="token-string">"nx_live_9f82a17b0c"</span>,        <span class="token-comment"># Passed as X-API-Key / Bearer header</span>
+    workspace_id=<span class="token-string">"ws_finance_prod"</span>,      <span class="token-comment"># Multi-tenant isolation context</span>
+    timeout=<span class="token-number">45.0</span>,                         <span class="token-comment"># HTTP timeout in seconds</span>
+    default_headers={<span class="token-string">"X-App-Env"</span>: <span class="token-string">"production"</span>}
+)
+
+<span class="token-comment"># Verify server health and connectivity:</span>
+status = client.health()
+<span class="token-func">print</span>(<span class="token-string">f"Nexora Server Status: {status['status']} | v{status.get('version')}"</span>)</code></pre>
+        </div>
+
+        <h3 class="sdk-subheading">Constructor Parameters</h3>
+        <div class="table-container">
+          <table class="spec-table">
+            <thead>
+              <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>base_url</code></td><td><code>str</code></td><td><code>"http://127.0.0.1:8000"</code></td><td>Root URL of the running Nexora HTTP server.</td></tr>
+              <tr><td><code>api_key</code></td><td><code>Optional[str]</code></td><td><code>None</code></td><td>Authentication key for secured private endpoints. Reads from <code>NEXORA_API_KEY</code> env if omitted.</td></tr>
+              <tr><td><code>workspace_id</code></td><td><code>Optional[str]</code></td><td><code>None</code></td><td>Tenant identifier to isolate jobs, watchers, and embeddings.</td></tr>
+              <tr><td><code>timeout</code></td><td><code>float</code></td><td><code>60.0</code></td><td>Maximum request timeout in seconds before throwing <code>NexoraTimeoutError</code>.</td></tr>
+              <tr><td><code>default_headers</code></td><td><code>Optional[dict]</code></td><td><code>None</code></td><td>Extra HTTP headers appended to all client requests.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Section: URL Discovery & Crawling -->
+      <section id="crawling" class="doc-section">
+        <h2 class="sdk-heading"><i class="fa-solid fa-spider heading-icon"></i> URL Discovery & Website Crawling</h2>
+        <p>Discover pages across any domain respecting robots.txt and sitemaps, or start full background crawls:</p>
+
+        <div class="code-card">
+          <div class="code-card-header">
+            <span class="code-card-title"><i class="fa-brands fa-python"></i> Python 3</span>
+            <button class="btn-copy-code" onclick="copyCode(this)"><i class="fa-regular fa-copy"></i> Copy</button>
+          </div>
+          <pre class="code-block"><code><span class="token-comment"># Method 1: Instant URL discovery (Sitemaps + Robots.txt + Link traversal)</span>
+discovery_job = client.discover_urls(
+    root_url=<span class="token-string">"https://example.com"</span>,
+    max_depth=<span class="token-number">3</span>,
+    max_pages=<span class="token-number">100</span>,
+    include_patterns=[<span class="token-string">r"^https://example\.com/blog/.*"</span>],  <span class="token-comment"># Regex filters</span>
+    exclude_patterns=[<span class="token-string">r".*\?(utm_source|ref)=.*"</span>],
+    browser_fallback=<span class="token-keyword">True</span>  <span class="token-comment"># Fallback to Chromium on anti-bot challenge</span>
+)
+<span class="token-func">print</span>(<span class="token-string">f"Started Discovery Job ID: {discovery_job.id}"</span>)
+
+<span class="token-comment"># Block until completed and fetch all discovered links:</span>
+job_status = client.wait_for_job(discovery_job.id, timeout=<span class="token-number">120.0</span>)
+<span class="token-func">print</span>(<span class="token-string">f"Found {len(job_status.discovered_urls)} URLs!"</span>)
+
+<span class="token-comment"># Method 2: Full end-to-end background crawl & document extraction</span>
+crawl_job = client.crawl_website(
+    start_url=<span class="token-string">"https://news.ycombinator.com"</span>,
+    max_pages=<span class="token-number">30</span>,
+    strategy=<span class="token-string">"auto"</span>  <span class="token-comment"># 'auto', 'playwright', 'crawl4ai', 'trafilatura'</span>
+)</code></pre>
+        </div>
+      </section>
+
+      <!-- Section: Multi-Engine Content Extraction -->
+      <section id="extraction" class="doc-section">
+        <h2 class="sdk-heading"><i class="fa-solid fa-gears heading-icon"></i> 4-Engine Content Extraction</h2>
+        <p>Nexora executes a smart cascaded strategy to reliably parse web pages regardless of anti-scraping or JavaScript frameworks:</p>
+
+        <div class="code-card">
+          <div class="code-card-header">
+            <span class="code-card-title"><i class="fa-brands fa-python"></i> Python 3</span>
+            <button class="btn-copy-code" onclick="copyCode(this)"><i class="fa-regular fa-copy"></i> Copy</button>
+          </div>
+          <pre class="code-block"><code><span class="token-comment"># Single-pass synchronous extraction with engine selection:</span>
+doc = client.extract_content(
+    url=<span class="token-string">"https://en.wikipedia.org/wiki/Artificial_intelligence"</span>,
+    strategy=<span class="token-string">"auto"</span>,  <span class="token-comment"># Adaptive Cascade Router</span>
+    css_selector=<span class="token-string">"#mw-content-text"</span>,  <span class="token-comment"># Optional CSS scope</span>
+    headers={<span class="token-string">"Accept-Language"</span>: <span class="token-string">"en-US"</span>}
+)
+
+<span class="token-func">print</span>(<span class="token-string">f"Title: {doc.title}"</span>)
+<span class="token-func">print</span>(<span class="token-string">f"Text Length: {len(doc.cleaned_text)} characters"</span>)
+<span class="token-func">print</span>(<span class="token-string">f"Engine Used: {doc.metadata.get('engine_used')}"</span>)</code></pre>
+        </div>
+
+        <div class="table-container">
+          <table class="spec-table">
+            <thead>
+              <tr><th>Strategy Flag</th><th>Engine</th><th>Optimal For</th><th>JS Execution</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>"auto"</code></td><td>Adaptive Smart Router</td><td>General web crawling; routes dynamically based on HTTP response.</td><td>Adaptive</td></tr>
+              <tr><td><code>"playwright"</code></td><td>Headless Chromium</td><td>Single Page Apps (React, Next.js, Vue), infinite scroll, clicks.</td><td>Full JS</td></tr>
+              <tr><td><code>"crawl4ai"</code></td><td>Async Headless DOM</td><td>Deep structured articles, structured tables, markdown output.</td><td>DOM JS</td></tr>
+              <tr><td><code>"trafilatura"</code></td><td>Fast HTTP Stripper</td><td>High-throughput static blogs, news feeds, documentation.</td><td>None (Ultra-Fast)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Section: Anti-Bot Stealth -->
+      <section id="stealth" class="doc-section">
+        <h2 class="sdk-heading"><i class="fa-solid fa-shield-cat heading-icon"></i> Anti-Bot Stealth Engine</h2>
+        <p>Bypass modern bot-mitigation systems (Cloudflare turnstile, Datadome, PerimeterX, synthetic loading screens) transparently:</p>
+        <div class="callout callout-info">
+          <i class="fa-solid fa-circle-check callout-icon"></i>
+          <div>
+            The stealth subsystem automatically emulates human viewport geometries, handles cookie jar continuity, resolves loading spinners with a <strong>Second-Chance Retry Loop</strong>, and mimics authentic Chrome TLS fingerprints without developer intervention.
+          </div>
+        </div>
+      </section>
+
+      <!-- Section: File Ingestion -->
+      <section id="files" class="doc-section">
+        <h2 class="sdk-heading"><i class="fa-solid fa-folder-open heading-icon"></i> Multi-Format File Ingestion</h2>
+        <p>In addition to web pages, process local documents directly into your RAG pipeline:</p>
+
+        <div class="code-card">
+          <div class="code-card-header">
+            <span class="code-card-title"><i class="fa-brands fa-python"></i> Python 3</span>
+            <button class="btn-copy-code" onclick="copyCode(this)"><i class="fa-regular fa-copy"></i> Copy</button>
+          </div>
+          <pre class="code-block"><code><span class="token-comment"># Ingest PDF, Word (.docx), Markdown, CSV, JSON, or Plaintext:</span>
+result = client.process_file(
+    file_path=<span class="token-string">"./reports/quarterly_q3.pdf"</span>,
+    strategy=<span class="token-string">"balanced"</span>  <span class="token-comment"># 'fast', 'balanced', or 'deep_structural'</span>
+)
+
+<span class="token-func">print</span>(<span class="token-string">f"Document ID: {result['document_id']}"</span>)
+<span class="token-func">print</span>(<span class="token-string">f"Extracted Text Words: {len(result['text'].split())}"</span>)</code></pre>
+        </div>
+      </section>
+
+      <!-- Section: Semantic Chunking & Repair -->
+      <section id="chunking" class="doc-section">
+        <h2 class="sdk-heading"><i class="fa-solid fa-cubes-stacked heading-icon"></i> Semantic Chunking & AI Repair</h2>
+        <p>Prepare extracted documents for Retrieval-Augmented Generation (RAG) with boundary-aware chunking and grammar smoothing:</p>
+
+        <div class="code-card">
+          <div class="code-card-header">
+            <span class="code-card-title"><i class="fa-brands fa-python"></i> Python 3</span>
+            <button class="btn-copy-code" onclick="copyCode(this)"><i class="fa-regular fa-copy"></i> Copy</button>
+          </div>
+          <pre class="code-block"><code><span class="token-comment"># 1. Segment extracted documents into semantic chunks</span>
+chunk_summary = client.chunk_job(
+    job_id=crawl_job.id,
+    chunk_size=<span class="token-number">500</span>,        <span class="token-comment"># Target tokens per chunk</span>
+    chunk_overlap=<span class="token-number">50</span>,      <span class="token-comment"># Sliding token overlap</span>
+    strategy=<span class="token-string">"token"</span>       <span class="token-comment"># 'token', 'sentence', or 'hierarchical'</span>
+)
+<span class="token-func">print</span>(<span class="token-string">f"Created {chunk_summary['total_chunks']} chunks."</span>)
+
+<span class="token-comment"># 2. Semantic boundary repair (smooths cut-off sentences & header context)</span>
+repair_result = client.repair_chunks(job_id=crawl_job.id)
+<span class="token-func">print</span>(<span class="token-string">f"Repaired Chunks: {repair_result.get('repaired_count', 0)}"</span>)
+
+<span class="token-comment"># 3. Generate dense vector embeddings</span>
+embed_result = client.embed_chunks(
+    job_id=crawl_job.id,
+    model=<span class="token-string">"text-embedding-3-small"</span>  <span class="token-comment"># OpenAI, Google Gemini, Ollama, or DeepSeek</span>
+)</code></pre>
+        </div>
+      </section>
+
+      <!-- Section: Hybrid Search & Retrieval -->
+      <section id="search" class="doc-section">
+        <h2 class="sdk-heading"><i class="fa-solid fa-magnifying-glass-chart heading-icon"></i> Hybrid Search (BM25 + Dense Vectors)</h2>
+        <p>Query your RAG index using hybrid Reciprocal Rank Fusion (RRF) for industry-leading recall:</p>
+
+        <div class="code-card">
+          <div class="code-card-header">
+            <span class="code-card-title"><i class="fa-brands fa-python"></i> Python 3</span>
+            <button class="btn-copy-code" onclick="copyCode(this)"><i class="fa-regular fa-copy"></i> Copy</button>
+          </div>
+          <pre class="code-block"><code><span class="token-comment"># Execute hybrid search across embedded chunks:</span>
+hits = client.search(
+    job_id=crawl_job.id,
+    query=<span class="token-string">"What are the quarterly net margins and projections?"</span>,
+    top_k=<span class="token-number">5</span>,
+    method=<span class="token-string">"hybrid"</span>,         <span class="token-comment"># 'hybrid', 'dense' (cosine), or 'bm25' (lexical)</span>
+    alpha=<span class="token-number">0.7</span>,               <span class="token-comment"># 0.0 = 100% BM25, 1.0 = 100% Vector similarity</span>
+    expand_neighbors=<span class="token-keyword">True</span>    <span class="token-comment"># Include preceding and succeeding chunks for LLM context</span>
+)
+
+<span class="token-keyword">for</span> idx, hit <span class="token-keyword">in</span> <span class="token-func">enumerate</span>(hits, <span class="token-number">1</span>):
+    <span class="token-func">print</span>(<span class="token-string">f"[{idx}] Score: {hit.score:.4f} | Source: {hit.source_url}"</span>)
+    <span class="token-func">print</span>(<span class="token-string">f"    Text: {hit.text[:120]}...
+"</span>)</code></pre>
+        </div>
+      </section>
+
+      <!-- Section: Vector Store Exports -->
+      <section id="vector-export" class="doc-section">
+        <h2 class="sdk-heading"><i class="fa-solid fa-database heading-icon"></i> Vector Database Exports</h2>
+        <p>Synchronize your embedded chunks directly into production vector databases:</p>
+
+        <div class="code-card">
+          <div class="code-card-header">
+            <span class="code-card-title"><i class="fa-brands fa-python"></i> Python 3</span>
+            <button class="btn-copy-code" onclick="copyCode(this)"><i class="fa-regular fa-copy"></i> Copy</button>
+          </div>
+          <pre class="code-block"><code><span class="token-comment"># Export directly to Qdrant Collection</span>
+client.export_to_qdrant(
+    job_id=crawl_job.id,
+    collection_name=<span class="token-string">"enterprise_knowledge"</span>,
+    qdrant_url=<span class="token-string">"http://localhost:6333"</span>
+)
+
+<span class="token-comment"># Or retrieve Chroma / Pinecone upsert payloads</span>
+chroma_payload = client.export_to_chroma(job_id=crawl_job.id)
+pinecone_payload = client.export_to_pinecone(job_id=crawl_job.id, namespace=<span class="token-string">"q3_reports"</span>)</code></pre>
+        </div>
+      </section>
+
+      <!-- Section: Live Watchers & Auto-Detect -->
+      <section id="live-overview" class="doc-section">
+        <h2 class="sdk-heading"><i class="fa-solid fa-satellite-dish heading-icon"></i> Live Watchers & Autonomous Auto-Detect</h2>
+        <p>
+          For fast-moving websites (crypto exchanges, stock tickers, e-commerce pricing, auction desks, flight portals),
+          use the <code>client.live</code> namespace. It monitors pages at sub-second frequencies, replaces stale data with live state,
+          and features <strong>Autonomous Dynamic Field Detection (Auto-Detect)</strong>.
+        </p>
+
+        <h3 class="sdk-subheading">A. Zero-Selector Auto-Detect Mode (Recommended)</h3>
+        <p>Nexora automatically observes the page, identifies changing metrics (Bitcoin price, 24h volume, market cap, stock availability), and infers CSS selectors without you needing to write any code:</p>
+
+        <div class="code-card">
+          <div class="code-card-header">
+            <span class="code-card-title"><i class="fa-brands fa-python"></i> Python 3</span>
+            <button class="btn-copy-code" onclick="copyCode(this)"><i class="fa-regular fa-copy"></i> Copy</button>
+          </div>
+          <pre class="code-block"><code><span class="token-keyword">from</span> nexora <span class="token-keyword">import</span> NexoraClient
+
+client = NexoraClient(base_url=<span class="token-string">"http://localhost:8000"</span>)
+
+<span class="token-comment"># Autonomous Live Watcher on CoinMarketCap Bitcoin (Zero CSS selectors needed!):</span>
+<span class="token-keyword">for</span> event <span class="token-keyword">in</span> client.live.watch(
+    url=<span class="token-string">"https://coinmarketcap.com/currencies/bitcoin/"</span>,
+    auto_detect=<span class="token-keyword">True</span>,          <span class="token-comment"># Autonomous scanner: discovers price, cap, volume</span>
+    observation_seconds=<span class="token-number">3.0</span>,   <span class="token-comment"># Initial observation window</span>
+    interval_seconds=<span class="token-number">2.0</span>       <span class="token-comment"># Live polling frequency</span>
+):
+    <span class="token-func">print</span>(<span class="token-string">f"[{event.timestamp}] Live Mutation #{event.change_count}"</span>)
+    <span class="token-func">print</span>(<span class="token-string">f"  Changed Fields: {event.diff}"</span>)
+    <span class="token-func">print</span>(<span class="token-string">f"  Current Live State: {event.latest_data}
+"</span>)</code></pre>
+        </div>
+
+        <h3 class="sdk-subheading">B. Standalone Field Scanner (Discover Selectors)</h3>
+        <div class="code-card">
+          <div class="code-card-header">
+            <span class="code-card-title"><i class="fa-brands fa-python"></i> Python 3</span>
+            <button class="btn-copy-code" onclick="copyCode(this)"><i class="fa-regular fa-copy"></i> Copy</button>
+          </div>
+          <pre class="code-block"><code><span class="token-comment"># Scan any webpage to discover dynamic fields and extract recommended CSS selectors:</span>
+scan_result = client.live.auto_detect(
+    url=<span class="token-string">"https://coinmarketcap.com/currencies/bitcoin/"</span>,
+    observation_seconds=<span class="token-number">3.0</span>
+)
+
+<span class="token-func">print</span>(<span class="token-string">f"Discovered {len(scan_result.detected_fields)} dynamic fields:"</span>)
+<span class="token-keyword">for</span> field <span class="token-keyword">in</span> scan_result.detected_fields:
+    mutation_tag = <span class="token-string">"[MUTATION]"</span> <span class="token-keyword">if</span> field.mutation_detected <span class="token-keyword">else</span> <span class="token-string">""</span>
+    <span class="token-func">print</span>(<span class="token-string">f"  • {field.name:20} -> Value: '{field.sample_value}' | Selector: {field.selector} {mutation_tag}"</span>)
+
+<span class="token-func">print</span>(<span class="token-string">"Recommended Selectors:"</span>, scan_result.recommended_selectors)</code></pre>
+        </div>
+
+        <h3 class="sdk-subheading">C. Explicit Manual CSS Selectors</h3>
+        <div class="code-card">
+          <div class="code-card-header">
+            <span class="code-card-title"><i class="fa-brands fa-python"></i> Python 3</span>
+            <button class="btn-copy-code" onclick="copyCode(this)"><i class="fa-regular fa-copy"></i> Copy</button>
+          </div>
+          <pre class="code-block"><code><span class="token-comment"># Custom targeted watcher:</span>
+watcher = client.live.create(
+    url=<span class="token-string">"https://example.com/store/item-123"</span>,
+    name=<span class="token-string">"Product Price Watcher"</span>,
+    selectors={<span class="token-string">"price"</span>: <span class="token-string">".current-price"</span>, <span class="token-string">"stock"</span>: <span class="token-string">"#stock-status"</span>},
+    interval_seconds=<span class="token-number">5.0</span>,
+    single_trigger=<span class="token-keyword">False</span>,
+    turn_on=<span class="token-keyword">True</span>
+)
+
+<span class="token-comment"># Query latest snapshot at any time (stale data was purged):</span>
+latest = client.live.get_latest(watcher.id)
+<span class="token-func">print</span>(<span class="token-string">"Latest State:"</span>, latest[<span class="token-string">'latest_data'</span>])
+
+<span class="token-comment"># Turn OFF when finished:</span>
+client.live.turn_off(watcher.id)</code></pre>
+        </div>
+      </section>
+
+      <!-- Section: Single-Trigger & Auto-Stop -->
+      <section id="live-single-trigger" class="doc-section">
+        <h2 class="sdk-heading"><i class="fa-solid fa-power-off heading-icon"></i> Single-Trigger Auto-Stop Mode</h2>
+        <p>
+          In <strong>single-trigger mode</strong> (<code>single_trigger=True</code>), the watcher wakes up, continuously inspects the page,
+          and the exact microsecond a change occurs:
+        </p>
+        <ol style="margin-left:1.5rem; color:var(--text-muted); margin-bottom:1.25rem;">
+          <li>Replaces the previous data with the fresh live state.</li>
+          <li>Emits the <code>LiveChangeEvent</code> notification via SSE and webhooks.</li>
+          <li><strong>Immediately turns OFF</strong> to avoid unnecessary bandwidth and server overhead.</li>
+        </ol>
+
+        <div class="code-card">
+          <div class="code-card-header">
+            <span class="code-card-title"><i class="fa-brands fa-python"></i> Python 3</span>
+            <button class="btn-copy-code" onclick="copyCode(this)"><i class="fa-regular fa-copy"></i> Copy</button>
+          </div>
+          <pre class="code-block"><code><span class="token-comment"># Snipe a concert ticket or product restock:</span>
+<span class="token-keyword">for</span> event <span class="token-keyword">in</span> client.live.watch(
+    url=<span class="token-string">"https://tickets.example.com/festival"</span>,
+    selectors={<span class="token-string">"status"</span>: <span class="token-string">".inventory-status"</span>},
+    interval_seconds=<span class="token-number">1.0</span>,
+    single_trigger=<span class="token-keyword">True</span>   <span class="token-comment"># Automatically turns OFF after first detected change</span>
+):
+    <span class="token-func">print</span>(<span class="token-string">f"🚨 Ticket state changed! New Status: {event.latest_data['status']}"</span>)
+    <span class="token-comment"># Loop ends and watcher automatically turns OFF</span></code></pre>
+        </div>
+      </section>
+
+      <!-- Section: Production Blueprints -->
+      <section id="blueprint-crypto" class="doc-section">
+        <h2 class="sdk-heading"><i class="fa-solid fa-rocket heading-icon"></i> Complete Production Blueprints</h2>
+        <p>Four end-to-end runnable blueprints demonstrating real-world applications built on Nexora:</p>
+
+        <h3 class="sdk-subheading">Blueprint 1: Real-Time Crypto Arbitrage & Telegram Alert Bot</h3>
+        <p>Monitors Bitcoin and crypto ticker fluctuations live and triggers an automated alert webhook when price moves beyond a threshold:</p>
+
+        <div class="code-card">
+          <div class="code-card-header">
+            <span class="code-card-title"><i class="fa-brands fa-python"></i> crypto_alert_bot.py</span>
+            <button class="btn-copy-code" onclick="copyCode(this)"><i class="fa-regular fa-copy"></i> Copy</button>
+          </div>
+          <pre class="code-block"><code><span class="token-keyword">import</span> sys
+<span class="token-keyword">from</span> nexora <span class="token-keyword">import</span> NexoraClient
+
+<span class="token-keyword">def</span> <span class="token-func">run_crypto_watcher</span>():
+    client = NexoraClient(base_url=<span class="token-string">"http://localhost:8000"</span>)
+    target_url = <span class="token-string">"https://coinmarketcap.com/currencies/bitcoin/"</span>
+
+    <span class="token-func">print</span>(<span class="token-string">"🚀 Starting Autonomous Bitcoin Price Sentinel..."</span>)
+
+    <span class="token-keyword">try</span>:
+        <span class="token-keyword">for</span> event <span class="token-keyword">in</span> client.live.watch(
+            url=target_url,
+            auto_detect=<span class="token-keyword">True</span>,          <span class="token-comment"># Auto-detect price, cap, volume</span>
+            observation_seconds=<span class="token-number">3.0</span>,
+            interval_seconds=<span class="token-number">2.0</span>
+        ):
+            diff = event.diff
+            <span class="token-keyword">if</span> <span class="token-string">"price"</span> <span class="token-keyword">in</span> diff:
+                old_p = diff[<span class="token-string">"price"</span>].get(<span class="token-string">"old"</span>)
+                new_p = diff[<span class="token-string">"price"</span>].get(<span class="token-string">"new"</span>)
+                <span class="token-func">print</span>(<span class="token-string">f"⚡ [PRICE MUTATION #{event.change_count}] {old_p} ➔ {new_p}"</span>)
+
+                <span class="token-comment"># Dispatch notification or execute automated trade:</span>
+                <span class="token-comment"># send_telegram_alert(f"BTC moved to {new_p}")</span>
+
+    <span class="token-keyword">except</span> KeyboardInterrupt:
+        <span class="token-func">print</span>(<span class="token-string">"
+Sentinel halted by operator."</span>)
+
+<span class="token-keyword">if</span> __name__ == <span class="token-string">"__main__"</span>:
+    run_crypto_watcher()</code></pre>
+        </div>
+
+        <h3 id="blueprint-rag" class="sdk-subheading">Blueprint 2: Enterprise RAG Knowledge Base Assistant</h3>
+        <p>Crawls an organization's documentation, chunks, repairs grammar, generates embeddings, and performs hybrid search:</p>
+
+        <div class="code-card">
+          <div class="code-card-header">
+            <span class="code-card-title"><i class="fa-brands fa-python"></i> enterprise_rag.py</span>
+            <button class="btn-copy-code" onclick="copyCode(this)"><i class="fa-regular fa-copy"></i> Copy</button>
+          </div>
+          <pre class="code-block"><code><span class="token-keyword">from</span> nexora <span class="token-keyword">import</span> NexoraClient
+
+<span class="token-keyword">def</span> <span class="token-func">build_knowledge_base</span>(doc_url: str):
+    client = NexoraClient(base_url=<span class="token-string">"http://localhost:8000"</span>)
+
+    <span class="token-comment"># Step 1: Crawl website</span>
+    job = client.crawl_website(start_url=doc_url, max_pages=<span class="token-number">25</span>, strategy=<span class="token-string">"auto"</span>)
+    client.wait_for_job(job.id, timeout=<span class="token-number">180.0</span>)
+
+    <span class="token-comment"># Step 2: Semantic Chunking</span>
+    client.chunk_job(job.id, chunk_size=<span class="token-number">400</span>, chunk_overlap=<span class="token-number">40</span>)
+
+    <span class="token-comment"># Step 3: Grammatical Smoothing & Boundary Repair</span>
+    client.repair_chunks(job.id)
+
+    <span class="token-comment"># Step 4: Vector Embeddings</span>
+    client.embed_chunks(job.id, model=<span class="token-string">"text-embedding-3-small"</span>)
+
+    <span class="token-comment"># Step 5: Hybrid Retrieval Query</span>
+    results = client.search(
+        job_id=job.id,
+        query=<span class="token-string">"How do I configure custom proxy authentication?"</span>,
+        top_k=<span class="token-number">3</span>,
+        method=<span class="token-string">"hybrid"</span>,
+        alpha=<span class="token-number">0.75</span>
+    )
+
+    <span class="token-keyword">for</span> r <span class="token-keyword">in</span> results:
+        <span class="token-func">print</span>(<span class="token-string">f"Score: {r.score:.4f} | URL: {r.source_url}"</span>)
+        <span class="token-func">print</span>(<span class="token-string">f"Chunk: {r.text}
+"</span>)
+
+<span class="token-keyword">if</span> __name__ == <span class="token-string">"__main__"</span>:
+    build_knowledge_base(<span class="token-string">"https://docs.example.com"</span>)</code></pre>
+        </div>
+
+        <h3 id="blueprint-pricing" class="sdk-subheading">Blueprint 3: Competitor Price Tracker & Auto-Repricer</h3>
+        <div class="code-card">
+          <div class="code-card-header">
+            <span class="code-card-title"><i class="fa-brands fa-python"></i> dynamic_repricer.py</span>
+            <button class="btn-copy-code" onclick="copyCode(this)"><i class="fa-regular fa-copy"></i> Copy</button>
+          </div>
+          <pre class="code-block"><code><span class="token-keyword">from</span> nexora <span class="token-keyword">import</span> NexoraClient
+
+<span class="token-keyword">def</span> <span class="token-func">reprice_competitor_item</span>(competitor_url: str, my_base_cost: float):
+    client = NexoraClient(base_url=<span class="token-string">"http://localhost:8000"</span>)
+
+    <span class="token-comment"># Continuous watcher for competitor discounts:</span>
+    <span class="token-keyword">for</span> change <span class="token-keyword">in</span> client.live.watch(
+        url=competitor_url,
+        selectors={<span class="token-string">"price"</span>: <span class="token-string">".product-price, [data-qa='price']"</span>},
+        interval_seconds=<span class="token-number">10.0</span>
+    ):
+        raw_price = change.latest_data.get(<span class="token-string">"price"</span>, <span class="token-string">"$0"</span>)
+        numeric_price = <span class="token-func">float</span>(raw_price.replace(<span class="token-string">"$"</span>, <span class="token-string">""</span>).replace(<span class="token-string">","</span>, <span class="token-string">""</span>))
+
+        <span class="token-comment"># Auto-Reprice rule: Beat competitor by 2% while protecting minimum margin</span>
+        optimal_price = <span class="token-func">max</span>(my_base_cost * <span class="token-number">1.10</span>, numeric_price * <span class="token-number">0.98</span>)
+        <span class="token-func">print</span>(<span class="token-string">f"Competitor Price: ${numeric_price} ➔ Updated My Price: ${optimal_price:.2f}"</span>)</code></pre>
+        </div>
+
+        <h3 id="blueprint-flash-sale" class="sdk-subheading">Blueprint 4: Flash Sale & Stock Sniping Engine</h3>
+        <div class="code-card">
+          <div class="code-card-header">
+            <span class="code-card-title"><i class="fa-brands fa-python"></i> stock_sniper.py</span>
+            <button class="btn-copy-code" onclick="copyCode(this)"><i class="fa-regular fa-copy"></i> Copy</button>
+          </div>
+          <pre class="code-block"><code><span class="token-keyword">from</span> nexora <span class="token-keyword">import</span> NexoraClient
+
+<span class="token-keyword">def</span> <span class="token-func">snipe_limited_item</span>(store_url: str):
+    client = NexoraClient(base_url=<span class="token-string">"http://localhost:8000"</span>)
+
+    <span class="token-func">print</span>(<span class="token-string">"🎯 Sniping limited item. Polling at 500ms intervals..."</span>)
+
+    <span class="token-keyword">for</span> event <span class="token-keyword">in</span> client.live.watch(
+        url=store_url,
+        selectors={<span class="token-string">"stock"</span>: <span class="token-string">".availability-badge, #inventory"</span>},
+        interval_seconds=<span class="token-number">0.5</span>,
+        single_trigger=<span class="token-keyword">True</span>  <span class="token-comment"># Auto turn OFF once inventory is unlocked</span>
+    ):
+        <span class="token-func">print</span>(<span class="token-string">"⚡ STOCK DETECTED! Triggering 1-Click Checkout..."</span>)
+        <span class="token-comment"># execute_checkout(store_url)</span>
+        <span class="token-keyword">break</span></code></pre>
+        </div>
+      </section>
+
+      <!-- Section: Exception Hierarchy -->
+      <section id="exceptions" class="doc-section">
+        <h2 class="sdk-heading"><i class="fa-solid fa-triangle-exclamation heading-icon"></i> Exception Hierarchy</h2>
+        <p>All exceptions thrown by the SDK inherit from <code>NexoraError</code> for predictable error handling:</p>
+
+        <div class="table-container">
+          <table class="spec-table">
+            <thead>
+              <tr><th>Exception Class</th><th>Base</th><th>When Raised</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>NexoraError</code></td><td><code>Exception</code></td><td>Base exception for all errors raised by the library.</td></tr>
+              <tr><td><code>NexoraAPIError</code></td><td><code>NexoraError</code></td><td>HTTP 4xx/5xx status response from the Nexora server. Includes <code>status_code</code> and <code>response_json</code>.</td></tr>
+              <tr><td><code>NexoraAuthenticationError</code></td><td><code>NexoraAPIError</code></td><td>HTTP 401/403 status indicating missing or invalid API key.</td></tr>
+              <tr><td><code>NexoraNotFoundError</code></td><td><code>NexoraAPIError</code></td><td>HTTP 404 status when a job, document, or watcher is not found.</td></tr>
+              <tr><td><code>NexoraTimeoutError</code></td><td><code>NexoraError</code></td><td>Raised by <code>wait_for_job</code> when operation exceeds timeout.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Scroll to Top Button -->
+  <button class="btn-scroll-top" id="btn-scroll-top" title="Scroll to top">
+    <i class="fa-solid fa-arrow-up"></i>
+  </button>
+
+  <script>
+    // Copy code snippet to clipboard
+    function copyCode(btn) {
+      const codeBlock = btn.closest('.code-card').querySelector('pre code');
+      if (!codeBlock) return;
+      navigator.clipboard.writeText(codeBlock.innerText).then(() => {
+        btn.classList.add('copied');
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> Copied!';
+        setTimeout(() => {
+          btn.classList.remove('copied');
+          btn.innerHTML = '<i class="fa-regular fa-copy"></i> Copy';
+        }, 2000);
+      });
+    }
+
+    // Scroll-to-top button logic
+    const btnScrollTop = document.getElementById('btn-scroll-top');
+    window.addEventListener('scroll', () => {
+      if (window.scrollY > 400) {
+        btnScrollTop.classList.add('visible');
+      } else {
+        btnScrollTop.classList.remove('visible');
+      }
+    });
+    btnScrollTop.addEventListener('click', () => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    // Quick search filter
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase().trim();
+        const sections = document.querySelectorAll('.doc-section');
+        sections.forEach(sec => {
+          if (!query) {
+            sec.style.display = 'block';
+            return;
+          }
+          const text = sec.innerText.toLowerCase();
+          sec.style.display = text.includes(query) ? 'block' : 'none';
+        });
+      });
+
+      // Keyboard shortcut Ctrl+K
+      window.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+          e.preventDefault();
+          searchInput.focus();
+        }
+      });
+    }
+
+    // Active link highlighting on scroll
+    const navLinks = document.querySelectorAll('.sidebar-nav-link');
+    window.addEventListener('scroll', () => {
+      let currentSection = '';
+      document.querySelectorAll('.doc-section').forEach(sec => {
+        const top = sec.offsetTop - 120;
+        if (window.scrollY >= top) {
+          currentSection = sec.getAttribute('id');
+        }
+      });
+      navLinks.forEach(link => {
+        link.classList.remove('active');
+        if (currentSection && link.getAttribute('href') === '#' + currentSection) {
+          link.classList.add('active');
+        }
+      });
+    });
+  </script>
+</body>
+</html>

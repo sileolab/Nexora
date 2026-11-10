@@ -325,6 +325,147 @@ def cmd_vector_export(args: argparse.Namespace) -> int:
         return 1
 
 
+def _parse_cli_selectors(selectors_raw: Optional[list[str]]) -> dict[str, str]:
+    """Parse key=value selector arguments into a dictionary."""
+    result = {}
+    if not selectors_raw:
+        return result
+    for item in selectors_raw:
+        if "=" in item:
+            k, v = item.split("=", 1)
+            result[k.strip()] = v.strip()
+        else:
+            result[item.strip()] = item.strip()
+    return result
+
+
+def cmd_live(args: argparse.Namespace) -> int:
+    """Handle live extraction CLI commands."""
+    client = get_client(args)
+    action = getattr(args, "live_action", "list")
+
+    try:
+        if action == "detect":
+            print_success(f"Scanning target for dynamic/mutating fields: {args.url}")
+            print(f"Observation window: {args.observation}s | Engine: {args.engine} ...")
+            result = client.live.auto_detect(
+                url=args.url,
+                observation_seconds=args.observation,
+                engine=args.engine,
+            )
+            print_success(f"Detection Complete! Found {len(result.detected_fields)} dynamic fields:")
+            for f in result.detected_fields:
+                mut_flag = "\033[92m[ACTIVE MUTATION]\033[0m " if f.mutation_detected else ""
+                print(f" • {f.name:22} ({f.field_type:10}) -> Selector: {f.selector:35} Sample: '{f.sample_value}' {mut_flag}[conf: {f.confidence:.2f}]")
+            print("\nRecommended Selectors for Live Watching:")
+            print_json(result.recommended_selectors)
+            return 0
+
+        elif action == "create":
+            is_auto = getattr(args, "auto", False)
+            selectors = _parse_cli_selectors(getattr(args, "selector", None))
+            effective_mode = "auto" if (is_auto or not selectors) else "manual"
+            watcher = client.live.create(
+                url=args.url,
+                name=args.name,
+                selectors=selectors,
+                mode=effective_mode,
+                observation_seconds=getattr(args, "observation", 3.0),
+                interval_seconds=args.interval,
+                engine=args.engine,
+                single_trigger=args.single_trigger,
+                turn_on=not args.turn_off,
+            )
+            print_success(f"Live watcher created: {watcher.id} (Mode: {watcher.mode}, Status: {watcher.status})")
+            print_json(watcher.model_dump())
+            return 0
+
+        elif action == "list":
+            watchers = client.live.list()
+            if not watchers:
+                print("No live watchers registered.")
+                return 0
+            print_success(f"Active Live Watchers ({len(watchers)} total):")
+            for w in watchers:
+                status_color = "\033[92m" if w.status == "active" else "\033[93m"
+                print(f" • [{w.id}] {status_color}{w.status.upper()}\033[0m | {w.name} | {w.url} | Changes: {w.change_count} | Interval: {w.interval_seconds}s")
+                if w.selectors:
+                    print(f"   Selectors: {w.selectors}")
+                if w.latest_data:
+                    preview = json.dumps(w.latest_data, ensure_ascii=False)
+                    if len(preview) > 100:
+                        preview = preview[:97] + "..."
+                    print(f"   Latest Data: {preview}")
+            return 0
+
+        elif action == "on":
+            res = client.live.turn_on(args.watcher_id)
+            print_success(f"Watcher {args.watcher_id} turned ON.")
+            print_json(res)
+            return 0
+
+        elif action == "off":
+            res = client.live.turn_off(args.watcher_id)
+            print_success(f"Watcher {args.watcher_id} turned OFF.")
+            print_json(res)
+            return 0
+
+        elif action == "latest":
+            latest = client.live.get_latest(args.watcher_id)
+            print_success(f"Latest live data for watcher {args.watcher_id}:")
+            print_json(latest)
+            return 0
+
+        elif action == "delete":
+            deleted = client.live.delete(args.watcher_id)
+            if deleted:
+                print_success(f"Deleted live watcher {args.watcher_id}")
+                return 0
+            else:
+                print_error(f"Failed to delete watcher {args.watcher_id}")
+                return 1
+
+        elif action == "watch":
+            is_auto = getattr(args, "auto", False)
+            selectors = _parse_cli_selectors(getattr(args, "selector", None))
+            effective_mode = "auto" if (is_auto or not selectors) else "manual"
+            print_success(f"Starting real-time live watch on: {args.url}")
+            mode_desc = f"Auto-Detect ({getattr(args, 'observation', 3.0)}s window)" if effective_mode == "auto" else "Manual Selectors"
+            print(f"Mode: {mode_desc} | Interval: {args.interval}s | Engine: {args.engine}")
+            if selectors:
+                print(f"Selectors: {selectors}")
+            print("Press Ctrl+C to stop.\n" + "-" * 60)
+
+            for event in client.live.watch(
+                url=args.url,
+                selectors=selectors,
+                mode=effective_mode,
+                observation_seconds=getattr(args, "observation", 3.0),
+                interval_seconds=args.interval,
+                engine=args.engine,
+                single_trigger=args.single_trigger,
+            ):
+                print(f"\n\033[96m[LIVE CHANGE #{event.change_count}]\033[0m {event.timestamp}")
+                print("\033[93mDiff (Changed fields):\033[0m")
+                print_json(event.diff)
+                print("\033[92mCurrent Live State (Previous replaced):\033[0m")
+                print_json(event.latest_data)
+                print("-" * 60)
+            return 0
+
+        else:
+            print_error(f"Unknown live action: {action}")
+            return 1
+
+    except KeyboardInterrupt:
+        print("\nLive watching stopped by user.")
+        return 0
+    except Exception as e:
+        print_error(f"Live operation failed: {e}")
+        return 1
+
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="nexora",
@@ -461,6 +602,67 @@ def build_parser() -> argparse.ArgumentParser:
     p_vexp.add_argument("--url", default="http://localhost:6333")
     p_vexp.add_argument("-o", "--output", help="Output file for chroma/pinecone JSON payloads")
     p_vexp.set_defaults(func=cmd_vector_export)
+
+    # live (real-time extraction & change tracking)
+    p_live = subparsers.add_parser("live", help="Real-time live extraction, change detection & monitoring")
+    live_sub = p_live.add_subparsers(dest="live_action", help="Live actions")
+
+    # live detect (autonomous dynamic field discovery)
+    pl_detect = live_sub.add_parser("detect", help="Auto-detect dynamic and mutating fields on target page")
+    pl_detect.add_argument("--url", required=True, help="Target URL to scan")
+    pl_detect.add_argument("--observation", type=float, default=3.0, help="Observation window in seconds (default: 3.0)")
+    pl_detect.add_argument("--engine", default="auto", choices=["auto", "fast_http", "playwright"])
+    pl_detect.set_defaults(func=cmd_live)
+
+    # live create
+    pl_create = live_sub.add_parser("create", help="Create a new live watcher")
+    pl_create.add_argument("--url", required=True, help="Target URL to monitor")
+    pl_create.add_argument("--name", help="Watcher label")
+    pl_create.add_argument("-s", "--selector", action="append", help="Field selectors (e.g. -s price=.price -s title=h1)")
+    pl_create.add_argument("--auto", action="store_true", help="Auto-discover dynamic fields without manual CSS selectors")
+    pl_create.add_argument("--observation", type=float, default=3.0, help="Observation window in seconds for auto-detection")
+    pl_create.add_argument("--interval", type=float, default=5.0, help="Check interval in seconds (default: 5.0)")
+    pl_create.add_argument("--engine", default="auto", choices=["auto", "fast_http", "playwright"], help="Extraction engine")
+    pl_create.add_argument("--single-trigger", action="store_true", help="Auto turn OFF after first change detected")
+    pl_create.add_argument("--turn-off", action="store_true", help="Do not turn on immediately upon creation")
+    pl_create.set_defaults(func=cmd_live)
+
+    # live list
+    pl_list = live_sub.add_parser("list", help="List all registered live watchers")
+    pl_list.set_defaults(func=cmd_live)
+
+    # live on
+    pl_on = live_sub.add_parser("on", help="Turn ON a live watcher")
+    pl_on.add_argument("watcher_id", help="Watcher ID")
+    pl_on.set_defaults(func=cmd_live)
+
+    # live off
+    pl_off = live_sub.add_parser("off", help="Turn OFF a live watcher")
+    pl_off.add_argument("watcher_id", help="Watcher ID")
+    pl_off.set_defaults(func=cmd_live)
+
+    # live latest
+    pl_latest = live_sub.add_parser("latest", help="Fetch latest live data snapshot")
+    pl_latest.add_argument("watcher_id", help="Watcher ID")
+    pl_latest.set_defaults(func=cmd_live)
+
+    # live delete
+    pl_del = live_sub.add_parser("delete", help="Delete a live watcher")
+    pl_del.add_argument("watcher_id", help="Watcher ID")
+    pl_del.set_defaults(func=cmd_live)
+
+    # live watch (interactive terminal streaming)
+    pl_watch = live_sub.add_parser("watch", help="Interactively watch a URL and stream changes live to terminal")
+    pl_watch.add_argument("--url", required=True, help="Target URL to monitor")
+    pl_watch.add_argument("-s", "--selector", action="append", help="Field selectors (e.g. -s price=.price)")
+    pl_watch.add_argument("--auto", action="store_true", help="Auto-discover dynamic fields without manual CSS selectors")
+    pl_watch.add_argument("--observation", type=float, default=3.0, help="Observation window in seconds for auto-detection")
+    pl_watch.add_argument("--interval", type=float, default=3.0, help="Check interval in seconds (default: 3.0)")
+    pl_watch.add_argument("--engine", default="auto", choices=["auto", "fast_http", "playwright"])
+    pl_watch.add_argument("--single-trigger", action="store_true", help="Stop after first detected change")
+    pl_watch.set_defaults(func=cmd_live)
+
+    p_live.set_defaults(func=cmd_live)
 
     return parser
 

@@ -912,6 +912,9 @@ function switchTab(tabName) {
     if (tabName === 'eval' && typeof window.onEvalTabActivated === 'function') {
         window.onEvalTabActivated();
     }
+    if (tabName === 'live' && typeof window.onLiveTabActivated === 'function') {
+        window.onLiveTabActivated();
+    }
 
     // Update Topbar Active View Title
     const topbarTitle = document.getElementById('topbar-active-tab-title');
@@ -921,7 +924,9 @@ function switchTab(tabName) {
             'extract': 'nav_extract',
             'ai': 'nav_ai',
             'files': 'nav_files',
-            'eval': 'nav_eval'
+            'eval': 'nav_eval',
+
+            'live': 'nav_live'
         };
         const key = tabKeyMap[tabName] || 'nav_discover';
         topbarTitle.setAttribute('data-i18n', key);
@@ -5426,3 +5431,484 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
+
+
+// ==========================================================================
+// 14. LIVE REAL-TIME EXTRACTION & CHANGE TRACKING MODULE
+// ==========================================================================
+(function() {
+    let activeEventSource = null;
+    let selectedWatcherId = null;
+    let currentLiveMode = 'auto'; // 'auto' or 'manual'
+    let autoDiscoveredFields = []; // Array of { name, selector, sample_value, field_type, selected }
+
+    function initLiveStudio() {
+        const btnAddSelector = document.getElementById('btn-add-live-selector');
+        const container = document.getElementById('live-selectors-container');
+        const btnCreate = document.getElementById('btn-create-live-watcher');
+        const btnRefresh = document.getElementById('btn-refresh-live-watchers');
+        const btnClearLog = document.getElementById('btn-clear-live-log');
+        const btnTest = document.getElementById('btn-test-extract-now');
+        const btnAutoDetect = document.getElementById('btn-run-auto-detect');
+
+        // Mode Switching
+        const modeRadios = document.querySelectorAll('input[name="live-mode-choice"]');
+        const autoPanel = document.getElementById('live-auto-detect-panel');
+        const manualPanel = document.getElementById('live-manual-selectors-panel');
+        const labelAuto = document.getElementById('live-mode-label-auto');
+        const labelManual = document.getElementById('live-mode-label-manual');
+
+        function setLiveMode(mode) {
+            currentLiveMode = mode;
+            if (mode === 'auto') {
+                if (labelAuto) {
+                    labelAuto.classList.add('active');
+                    labelAuto.style.borderColor = '#06b6d4';
+                }
+                if (labelManual) {
+                    labelManual.classList.remove('active');
+                    labelManual.style.borderColor = '#1e293b';
+                }
+                if (autoPanel) autoPanel.style.display = 'flex';
+                if (manualPanel) manualPanel.style.display = 'none';
+            } else {
+                if (labelManual) {
+                    labelManual.classList.add('active');
+                    labelManual.style.borderColor = '#06b6d4';
+                }
+                if (labelAuto) {
+                    labelAuto.classList.remove('active');
+                    labelAuto.style.borderColor = '#1e293b';
+                }
+                if (autoPanel) autoPanel.style.display = 'none';
+                if (manualPanel) manualPanel.style.display = 'flex';
+            }
+        }
+
+        modeRadios.forEach(r => {
+            r.addEventListener('change', (e) => {
+                setLiveMode(e.target.value);
+            });
+        });
+
+        // Quick Presets
+        document.querySelectorAll('.btn-live-preset').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const u = btn.getAttribute('data-url');
+                const n = btn.getAttribute('data-name');
+                const inputUrl = document.getElementById('live-input-url');
+                const inputName = document.getElementById('live-input-name');
+                if (inputUrl) inputUrl.value = u;
+                if (inputName) inputName.value = n;
+                // Switch to auto mode
+                const radioAuto = document.querySelector('input[name="live-mode-choice"][value="auto"]');
+                if (radioAuto) radioAuto.checked = true;
+                setLiveMode('auto');
+            });
+        });
+
+        // Auto-Detect Scanner
+        if (btnAutoDetect) {
+            btnAutoDetect.addEventListener('click', async () => {
+                const url = (document.getElementById('live-input-url')?.value || '').trim();
+                if (!url) {
+                    alert('Please enter a target URL to scan for dynamic fields.');
+                    return;
+                }
+                const obsSec = parseFloat(document.getElementById('live-input-observation')?.value || '3.0');
+                const engine = document.getElementById('live-input-engine')?.value || 'auto';
+
+                btnAutoDetect.disabled = true;
+                btnAutoDetect.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Scanning DOM mutations (' + obsSec + 's)...';
+
+                try {
+                    const resp = await fetch('/api/live/auto-detect', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            url: url,
+                            observation_seconds: obsSec,
+                            engine: engine
+                        })
+                    });
+                    const data = await resp.json();
+                    if (resp.ok) {
+                        autoDiscoveredFields = (data.detected_fields || []).map(f => ({
+                            name: f.name,
+                            selector: f.selector,
+                            sample_value: f.sample_value,
+                            field_type: f.field_type,
+                            confidence: f.confidence,
+                            mutation_detected: f.mutation_detected,
+                            selected: true
+                        }));
+
+                        renderDiscoveredChips();
+                        appendStreamLog(`✨ Auto-discovery complete: ${autoDiscoveredFields.length} dynamic fields detected!`);
+                    } else {
+                        alert('Auto-detection error: ' + (data.detail || JSON.stringify(data)));
+                    }
+                } catch (e) {
+                    alert('Detection network failure: ' + e.message);
+                } finally {
+                    btnAutoDetect.disabled = false;
+                    btnAutoDetect.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Scan & Discover Dynamic Fields';
+                }
+            });
+        }
+
+        function renderDiscoveredChips() {
+            const container = document.getElementById('live-discovered-fields');
+            const chipsEl = document.getElementById('live-discovered-chips');
+            const titleEl = document.getElementById('live-discovered-title');
+            if (!container || !chipsEl) return;
+
+            if (autoDiscoveredFields.length === 0) {
+                container.style.display = 'none';
+                return;
+            }
+
+            container.style.display = 'flex';
+            if (titleEl) {
+                titleEl.textContent = `Discovered Fields (${autoDiscoveredFields.length}):`;
+            }
+            chipsEl.innerHTML = '';
+
+            autoDiscoveredFields.forEach((f, idx) => {
+                const chip = document.createElement('div');
+                chip.className = 'live-field-chip' + (f.selected ? ' selected' : '');
+                const mutBadge = f.mutation_detected ? '<span style="color:#10b981; font-weight:700;">[MUTATION]</span> ' : '';
+                chip.innerHTML = `
+                    <input type="checkbox" ${f.selected ? 'checked' : ''} style="accent-color:#10b981; cursor:pointer;">
+                    <span class="live-field-chip-name">${f.name}:</span>
+                    <span class="live-field-chip-val">${f.sample_value}</span>
+                    <span class="live-field-chip-badge">${mutBadge}${Math.round(f.confidence * 100)}%</span>
+                `;
+                chip.addEventListener('click', (e) => {
+                    if (e.target.tagName !== 'INPUT') {
+                        f.selected = !f.selected;
+                        const cb = chip.querySelector('input');
+                        if (cb) cb.checked = f.selected;
+                    } else {
+                        f.selected = e.target.checked;
+                    }
+                    chip.classList.toggle('selected', f.selected);
+                });
+                chipsEl.appendChild(chip);
+            });
+        }
+
+        if (btnAddSelector && container) {
+            btnAddSelector.addEventListener('click', () => {
+                const row = document.createElement('div');
+                row.className = 'live-selector-row';
+                row.style.cssText = 'display:flex; gap:8px;';
+                row.innerHTML = `
+                    <input type="text" class="form-input form-input-sm live-field-key" placeholder="Field (e.g. price)" style="width:35%;">
+                    <input type="text" class="form-input form-input-sm live-field-css" placeholder="CSS Selector (e.g. .current-price)" style="flex:1;">
+                    <button type="button" class="btn btn-xs btn-danger btn-remove-selector" style="padding:2px 6px;">&times;</button>
+                `;
+                row.querySelector('.btn-remove-selector').addEventListener('click', () => row.remove());
+                container.appendChild(row);
+            });
+        }
+
+        if (btnClearLog) {
+            btnClearLog.addEventListener('click', () => {
+                const log = document.getElementById('live-stream-log');
+                if (log) log.innerHTML = '<div style="color:#64748b; font-style:italic;">Log cleared. Awaiting live changes...</div>';
+            });
+        }
+
+        if (btnRefresh) {
+            btnRefresh.addEventListener('click', fetchWatchers);
+        }
+
+        if (btnCreate) {
+            btnCreate.addEventListener('click', async () => {
+                const url = (document.getElementById('live-input-url')?.value || '').trim();
+                if (!url) {
+                    alert('Please enter a target URL to monitor.');
+                    return;
+                }
+                const name = (document.getElementById('live-input-name')?.value || '').trim();
+                const interval = parseFloat(document.getElementById('live-input-interval')?.value || '3.0');
+                const obsSec = parseFloat(document.getElementById('live-input-observation')?.value || '3.0');
+                const engine = document.getElementById('live-input-engine')?.value || 'auto';
+                const singleTrigger = document.getElementById('live-input-single-trigger')?.checked || false;
+
+                const selectors = {};
+                if (currentLiveMode === 'auto') {
+                    // If user scanned and has selected chips, pass those
+                    const activeDiscovered = autoDiscoveredFields.filter(f => f.selected);
+                    if (activeDiscovered.length > 0) {
+                        activeDiscovered.forEach(f => {
+                            selectors[f.name] = f.selector;
+                        });
+                    }
+                } else {
+                    // Manual mode
+                    document.querySelectorAll('.live-selector-row').forEach(row => {
+                        const k = row.querySelector('.live-field-key')?.value.trim();
+                        const v = row.querySelector('.live-field-css')?.value.trim();
+                        if (k && v) {
+                            selectors[k] = v;
+                        }
+                    });
+                }
+
+                btnCreate.disabled = true;
+                btnCreate.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Turning ON...';
+
+                try {
+                    const resp = await fetch('/api/live/watchers', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            url: url,
+                            name: name || undefined,
+                            selectors: selectors,
+                            interval_seconds: interval,
+                            engine: engine,
+                            single_trigger: singleTrigger,
+                            mode: currentLiveMode,
+                            observation_seconds: obsSec,
+                            turn_on: true
+                        })
+                    });
+                    const data = await resp.json();
+                    if (resp.ok) {
+                        appendStreamLog(`🟢 Watcher turned ON [${data.mode.toUpperCase()}]: ${data.name} (${data.id})`);
+                        await fetchWatchers();
+                        connectStream(data.id);
+                    } else {
+                        alert('Error starting watcher: ' + (data.detail || JSON.stringify(data)));
+                    }
+                } catch (err) {
+                    alert('Network error: ' + err.message);
+                } finally {
+                    btnCreate.disabled = false;
+                    btnCreate.innerHTML = '<i class="fa-solid fa-play"></i> Turn ON Watcher';
+                }
+            });
+        }
+
+        if (btnTest) {
+            btnTest.addEventListener('click', async () => {
+                const url = (document.getElementById('live-input-url')?.value || '').trim();
+                if (!url) {
+                    alert('Please enter a target URL to test.');
+                    return;
+                }
+                btnTest.disabled = true;
+                btnTest.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+                try {
+                    const resp = await fetch('/api/live/watchers', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            url: url,
+                            name: 'Test Snapshot',
+                            interval_seconds: 5.0,
+                            mode: currentLiveMode,
+                            turn_on: false
+                        })
+                    });
+                    const watcher = await resp.json();
+                    if (resp.ok) {
+                        const testResp = await fetch(`/api/live/watchers/${watcher.id}/extract-now`, { method: 'POST' });
+                        const testData = await testResp.json();
+                        updateLiveSnapshot(testData.extracted_data, 'Instant Test Pass');
+                        await fetch(`/api/live/watchers/${watcher.id}`, { method: 'DELETE' });
+                    }
+                } catch (e) {
+                    alert('Test failed: ' + e.message);
+                } finally {
+                    btnTest.disabled = false;
+                    btnTest.innerHTML = '<i class="fa-solid fa-bolt"></i> Test';
+                }
+            });
+        }
+
+        window.onLiveTabActivated = function() {
+            fetchWatchers();
+        };
+    }
+
+    async function fetchWatchers() {
+        try {
+            const resp = await fetch('/api/live/watchers');
+            const data = await resp.json();
+            const listEl = document.getElementById('live-watchers-list');
+            const badgeCount = document.getElementById('live-badge-count');
+            if (!listEl) return;
+
+            if (badgeCount) {
+                badgeCount.textContent = data.total_active > 0 ? `${data.total_active} LIVE` : 'LIVE';
+            }
+
+            if (!data.watchers || data.watchers.length === 0) {
+                listEl.innerHTML = `
+                    <div class="empty-state" style="padding:1rem;">
+                        <i class="fa-solid fa-satellite-dish empty-icon" style="font-size:1.5rem;"></i>
+                        <p style="font-size:0.8rem; margin:4px 0 0;">No active watchers. Create one on the left to start live monitoring.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            listEl.innerHTML = '';
+            data.watchers.forEach(w => {
+                const isActive = w.status === 'active';
+                const statusColor = isActive ? '#10b981' : (w.status === 'triggered' ? '#06b6d4' : '#64748b');
+                const card = document.createElement('div');
+                card.style.cssText = `
+                    background: #0f172a;
+                    border: 1px solid ${selectedWatcherId === w.id ? '#06b6d4' : '#1e293b'};
+                    border-radius: 8px;
+                    padding: 10px 12px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: 10px;
+                `;
+                card.innerHTML = `
+                    <div style="flex:1; overflow:hidden;">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${statusColor}; box-shadow:0 0 6px ${statusColor};"></span>
+                            <strong style="font-size:0.85rem; color:#f8fafc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${w.name}</strong>
+                            <span style="font-size:0.7rem; font-family:monospace; color:#94a3b8;">${w.status.toUpperCase()}</span>
+                            <span style="font-size:0.65rem; background:rgba(6,182,212,0.15); color:#06b6d4; padding:1px 5px; border-radius:4px; font-weight:700;">${(w.mode || 'manual').toUpperCase()}</span>
+                        </div>
+                        <div style="font-size:0.75rem; color:#64748b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px;">
+                            ${w.url} • ${w.interval_seconds}s • Changes: <strong>${w.change_count}</strong>
+                        </div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <button type="button" class="btn btn-xs ${isActive ? 'btn-warning' : 'btn-primary'} btn-toggle-state" style="font-size:0.7rem; padding:4px 8px;">
+                            <i class="fa-solid ${isActive ? 'fa-pause' : 'fa-play'}"></i> ${isActive ? 'Turn OFF' : 'Turn ON'}
+                        </button>
+                        <button type="button" class="btn btn-xs btn-secondary btn-select-watcher" style="font-size:0.7rem; padding:4px 8px;" title="View Live Stream">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                        <button type="button" class="btn btn-xs btn-danger btn-del-watcher" style="font-size:0.7rem; padding:4px 6px;" title="Delete Watcher">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                `;
+
+                card.querySelector('.btn-toggle-state').addEventListener('click', async () => {
+                    const endpoint = isActive ? `/api/live/watchers/${w.id}/turn-off` : `/api/live/watchers/${w.id}/turn-on`;
+                    await fetch(endpoint, { method: 'POST' });
+                    appendStreamLog(`🔄 Watcher ${w.name} ${isActive ? 'turned OFF' : 'turned ON'}`);
+                    await fetchWatchers();
+                });
+
+                card.querySelector('.btn-select-watcher').addEventListener('click', () => {
+                    selectedWatcherId = w.id;
+                    if (w.latest_data) {
+                        updateLiveSnapshot(w.latest_data, `Watcher: ${w.name}`);
+                    }
+                    connectStream(w.id);
+                    fetchWatchers();
+                });
+
+                card.querySelector('.btn-del-watcher').addEventListener('click', async () => {
+                    if (confirm(`Delete watcher '${w.name}'?`)) {
+                        await fetch(`/api/live/watchers/${w.id}`, { method: 'DELETE' });
+                        if (selectedWatcherId === w.id) {
+                            if (activeEventSource) activeEventSource.close();
+                            selectedWatcherId = null;
+                        }
+                        await fetchWatchers();
+                    }
+                });
+
+                listEl.appendChild(card);
+            });
+
+            if (!selectedWatcherId && data.watchers.length > 0) {
+                const first = data.watchers[0];
+                selectedWatcherId = first.id;
+                if (first.latest_data) {
+                    updateLiveSnapshot(first.latest_data, `Watcher: ${first.name}`);
+                }
+                connectStream(first.id);
+            }
+        } catch (e) {
+            console.error('Failed to fetch live watchers:', e);
+        }
+    }
+
+    function connectStream(watcherId) {
+        if (activeEventSource) {
+            activeEventSource.close();
+            activeEventSource = null;
+        }
+
+        appendStreamLog(`📡 Connecting to live SSE stream for watcher ${watcherId}...`);
+        activeEventSource = new EventSource(`/api/live/watchers/${watcherId}/stream`);
+
+        activeEventSource.onmessage = function(e) {
+            try {
+                const data = JSON.parse(e.data);
+                if (data.event === 'connected') {
+                    appendStreamLog(`🟢 Connected. Current state loaded.`);
+                    if (data.latest_data) {
+                        updateLiveSnapshot(data.latest_data, 'Live Connected State');
+                    }
+                    return;
+                }
+
+                if (data.latest_data) {
+                    updateLiveSnapshot(data.latest_data, `Live Change #${data.change_count} Replaced`);
+                }
+
+                if (data.diff && Object.keys(data.diff).length > 0) {
+                    let diffText = [];
+                    for (const [k, v] of Object.entries(data.diff)) {
+                        diffText.push(`<span style="color:#06b6d4;">${k}</span>: <span class="diff-old">${JSON.stringify(v.old)}</span> ➔ <span class="diff-new">${JSON.stringify(v.new)}</span>`);
+                    }
+                    appendStreamLog(`⚡ <strong>CHANGE #${data.change_count}</strong>: ${diffText.join(' | ')}`);
+                }
+
+                fetchWatchers();
+            } catch (err) {
+                console.error('Stream parse error:', err);
+            }
+        };
+    }
+
+    function updateLiveSnapshot(data, subtitle) {
+        const preview = document.getElementById('live-data-preview');
+        const sub = document.getElementById('live-data-subtitle');
+        const ts = document.getElementById('live-state-timestamp');
+
+        if (preview) {
+            preview.textContent = JSON.stringify(data, null, 2);
+        }
+        if (sub && subtitle) {
+            sub.textContent = subtitle;
+        }
+        if (ts) {
+            const timeStr = new Date().toLocaleTimeString();
+            ts.textContent = `Replaced at ${timeStr}`;
+        }
+    }
+
+    function appendStreamLog(html) {
+        const log = document.getElementById('live-stream-log');
+        if (!log) return;
+        const time = new Date().toLocaleTimeString();
+        const item = document.createElement('div');
+        item.className = 'live-diff-item';
+        item.innerHTML = `<span style="color:#64748b;">[${time}]</span> <div style="flex:1;">${html}</div>`;
+        log.insertBefore(item, log.firstChild);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initLiveStudio);
+    } else {
+        initLiveStudio();
+    }
+})();

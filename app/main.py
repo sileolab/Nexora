@@ -26,7 +26,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import routes_discovery, routes_exports, routes_extraction, routes_jobs, routes_ai, routes_files
+from app.api import routes_discovery, routes_exports, routes_extraction, routes_jobs, routes_ai, routes_files, routes_live
 from app.api import routes_workspaces, routes_admin
 from app.core.config import get_settings
 from app.core.logging_config import get_logger, setup_logging
@@ -64,6 +64,11 @@ def create_app() -> FastAPI:
         finally:
             stop_event.set()
             watchdog_task.cancel()
+            try:
+                from app.services.live_extractor import get_live_manager
+                get_live_manager().shutdown_all()
+            except Exception:
+                pass
             try:
                 await watchdog_task
             except (asyncio.CancelledError, Exception):
@@ -190,7 +195,7 @@ def create_app() -> FastAPI:
                     )
 
         response = await call_next(request)
-        if path in ("/", "/docs", "/api-docs") or path.startswith("/static/"):
+        if path in ("/", "/docs", "/api-docs", "/sdk", "/sdk-docs") or path.startswith("/static/"):
             response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
@@ -212,6 +217,7 @@ def create_app() -> FastAPI:
     app.include_router(routes_files.router)
     app.include_router(routes_workspaces.router)
     app.include_router(routes_admin.router)
+    app.include_router(routes_live.router)
 
     # Inject job manager into admin router
     routes_admin.set_job_manager(manager)
@@ -252,6 +258,22 @@ def create_app() -> FastAPI:
             )
         return {"message": "Nexora API docs.html was not found."}
 
+    @app.get("/sdk", include_in_schema=False)
+    @app.get("/sdk-docs", include_in_schema=False)
+    async def serve_sdk_docs():
+        """Serve the custom interactive Nexora Python SDK Documentation."""
+        sdk_docs_file = static_dir / "sdk_docs.html"
+        if sdk_docs_file.exists():
+            return FileResponse(
+                sdk_docs_file,
+                headers={
+                    "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+                    "Pragma": "no-cache",
+                    "Expires": "0",
+                },
+            )
+        return {"message": "Nexora Python SDK sdk_docs.html was not found."}
+
     @app.get("/health", tags=["system"])
     @app.get("/api/health", tags=["system"])
     @app.get("/api/v1/health", tags=["system"])
@@ -286,6 +308,7 @@ def create_app() -> FastAPI:
                 "multi_tenant": True,
                 "usage_metering": True,
                 "byok": True,
+                "live_extraction": True,
             },
         }
 

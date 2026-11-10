@@ -6,10 +6,11 @@ notebooks, and external RAG workflows.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import time
-from typing import Any, Optional, Union
+from typing import Any, Callable, Generator, Optional, Union
 import httpx
 
 from nexora.exceptions import (
@@ -26,8 +27,12 @@ from nexora.exceptions import (
 )
 from nexora.models import (
     ChunkInfo,
+    DiscoveredDynamicFieldInfo,
+    DynamicFieldDetectionResult,
     ExtractionResult,
     JobInfo,
+    LiveChangeEvent,
+    LiveWatcherInfo,
     QualityReport,
     SearchResult,
     SyncReport,
@@ -65,6 +70,7 @@ class NexoraClient:
             timeout=self.timeout,
             verify=self.verify_ssl,
         )
+        self.live = LiveExtractionNamespace(self)
 
     def close(self) -> None:
         """Close the underlying HTTP client session."""
@@ -454,6 +460,155 @@ class NexoraClient:
         """Generate Pinecone vectors upsert structure."""
         params = {"namespace": namespace} if namespace else None
         return self._request("GET", f"/api/v1/ai/vector-export/pinecone/{job_id}", params=params)
+
+
+class LiveExtractionNamespace:
+    """Namespace for managing real-time live watchers and streaming changes."""
+
+    def __init__(self, client: NexoraClient):
+        self._c = client
+
+    def auto_detect(
+        self,
+        url: str,
+        observation_seconds: float = 3.0,
+        engine: str = "auto",
+        headers: Optional[dict[str, str]] = None,
+    ) -> DynamicFieldDetectionResult:
+        """Autonomously scan a target webpage for mutating dynamic fields (prices, stock, tickers)."""
+        payload = {
+            "url": url,
+            "observation_seconds": observation_seconds,
+            "engine": engine,
+            "headers": headers or {},
+        }
+        data = self._c._request("POST", "/api/v1/live/auto-detect", json_data=payload)
+        return DynamicFieldDetectionResult.model_validate(data)
+
+    def create(
+        self,
+        url: str,
+        name: Optional[str] = None,
+        selectors: Optional[dict[str, str]] = None,
+        interval_seconds: float = 5.0,
+        engine: str = "auto",
+        single_trigger: bool = False,
+        turn_on: bool = True,
+        mode: str = "manual",
+        auto_detect: bool = False,
+        observation_seconds: float = 3.0,
+        webhook_url: Optional[str] = None,
+        headers: Optional[dict[str, str]] = None,
+    ) -> LiveWatcherInfo:
+        """Create a new live watcher for a dynamic webpage or API feed."""
+        effective_mode = "auto" if auto_detect or mode == "auto" or (selectors is None) else "manual"
+        payload = {
+            "url": url,
+            "name": name,
+            "selectors": selectors or {},
+            "interval_seconds": interval_seconds,
+            "engine": engine,
+            "single_trigger": single_trigger,
+            "turn_on": turn_on,
+            "mode": effective_mode,
+            "observation_seconds": observation_seconds,
+            "webhook_url": webhook_url,
+            "headers": headers or {},
+        }
+        data = self._c._request("POST", "/api/v1/live/watchers", json_data=payload)
+        return LiveWatcherInfo.model_validate(data)
+
+    def list(self) -> list[LiveWatcherInfo]:
+        """List all registered live watchers."""
+        data = self._c._request("GET", "/api/v1/live/watchers")
+        watchers = data.get("watchers", []) if isinstance(data, dict) else []
+        return [LiveWatcherInfo.model_validate(w) for w in watchers]
+
+    def get(self, watcher_id: str) -> LiveWatcherInfo:
+        """Fetch watcher metadata, operational status, and latest snapshot."""
+        data = self._c._request("GET", f"/api/v1/live/watchers/{watcher_id}")
+        return LiveWatcherInfo.model_validate(data)
+
+    def turn_on(self, watcher_id: str) -> dict[str, Any]:
+        """Turn ON watcher to begin real-time monitoring."""
+        return self._c._request("POST", f"/api/v1/live/watchers/{watcher_id}/turn-on")
+
+    def turn_off(self, watcher_id: str) -> dict[str, Any]:
+        """Turn OFF watcher to halt monitoring."""
+        return self._c._request("POST", f"/api/v1/live/watchers/{watcher_id}/turn-off")
+
+    def get_latest(self, watcher_id: str) -> dict[str, Any]:
+        """Get the latest live data snapshot (previous stale data has been replaced)."""
+        return self._c._request("GET", f"/api/v1/live/watchers/{watcher_id}/latest")
+
+    def extract_now(self, watcher_id: str) -> dict[str, Any]:
+        """Force an immediate extraction pass and return latest data."""
+        return self._c._request("POST", f"/api/v1/live/watchers/{watcher_id}/extract-now")
+
+    def delete(self, watcher_id: str) -> bool:
+        """Delete live watcher."""
+        try:
+            self._c._request("DELETE", f"/api/v1/live/watchers/{watcher_id}")
+            return True
+        except Exception:
+            return False
+
+    def stream(self, watcher_id: str) -> Generator[LiveChangeEvent, None, None]:
+        """Yield live ChangeEvents in real-time as Server-Sent Events (SSE)."""
+        url = f"{self._c.base_url}/api/v1/live/watchers/{watcher_id}/stream"
+        headers = dict(self._c._client.headers)
+        with httpx.stream("GET", url, headers=headers, timeout=None) as response:
+            for line in response.iter_lines():
+                if line.startswith("data: "):
+                    raw_data = line[6:].strip()
+                    try:
+                        parsed = json.loads(raw_data)
+                        if "event" in parsed and parsed.get("event") == "connected":
+                            continue
+                        yield LiveChangeEvent.model_validate(parsed)
+                    except Exception:
+                        pass
+
+    def watch(
+        self,
+        url: str,
+        selectors: Optional[dict[str, str]] = None,
+        interval_seconds: float = 3.0,
+        engine: str = "auto",
+        mode: str = "manual",
+        auto_detect: bool = False,
+        observation_seconds: float = 3.0,
+        on_change: Optional[Callable[[LiveChangeEvent], None]] = None,
+        max_changes: Optional[int] = None,
+        single_trigger: bool = False,
+    ) -> Generator[LiveChangeEvent, None, None]:
+        """High-level one-liner to watch a URL live, automatically creating and streaming."""
+        effective_mode = "auto" if auto_detect or mode == "auto" or (selectors is None) else "manual"
+        watcher = self.create(
+            url=url,
+            selectors=selectors,
+            interval_seconds=interval_seconds,
+            engine=engine,
+            single_trigger=single_trigger,
+            mode=effective_mode,
+            observation_seconds=observation_seconds,
+            turn_on=True,
+        )
+        try:
+            count = 0
+            for event in self.stream(watcher.id):
+                if on_change:
+                    on_change(event)
+                yield event
+                count += 1
+                if max_changes and count >= max_changes:
+                    break
+                if single_trigger:
+                    break
+        finally:
+            self.turn_off(watcher.id)
+            self.delete(watcher.id)
+
 
 
 # Backward compatibility alias

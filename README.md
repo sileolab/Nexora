@@ -8,7 +8,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Playwright](https://img.shields.io/badge/Engine-Playwright%20Chromium-45BA4B?style=for-the-badge&logo=playwright&logoColor=white)](https://playwright.dev/python/)
 [![Crawl4AI](https://img.shields.io/badge/Engine-Crawl4AI-FF5722?style=for-the-badge)](https://crawl4ai.com/)
-[![Tests Passing](https://img.shields.io/badge/Tests-474%20Passing%20(100%25)-brightgreen?style=for-the-badge&logo=pytest&logoColor=white)](tests/)
+[![Tests Passing](https://img.shields.io/badge/Tests-480%20Passing%20(100%25)-brightgreen?style=for-the-badge&logo=pytest&logoColor=white)](tests/)
 [![API Docs](https://img.shields.io/badge/API%20Portal-Interactive%20%2Fdocs-06b6d4?style=for-the-badge&logo=openapi-initiative&logoColor=white)](http://localhost:8000/docs)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 
@@ -17,6 +17,7 @@
 **Nexora** is an enterprise-grade, asynchronous web crawling, content extraction, and data intelligence platform engineered specifically for **Retrieval-Augmented Generation (RAG)**, LLM knowledge grounding, and production semantic search systems.
 
 [Live Studio Tour](#-live-studio-tour--visual-showcase) •
+[Live Extraction Engine](#-live-real-time-extraction--change-tracking) •
 [System Pipeline](#-animated-pipeline-architecture) •
 [Interactive Terminal](#-animated-developer-cli-experience) •
 [4-Engine Comparison](#-4-engine-extraction-matrix) •
@@ -94,11 +95,35 @@ Ingest PDF, DOCX, TXT, MD, JSON, and CSV documents directly. Automatic text extr
 
 <br/>
 
-### 6. AI Settings & Bring-Your-Own-Key (BYOK) Management
+### 6. Live Real-Time Extraction & Change Tracking Studio
+Continuous live monitoring of e-commerce prices, financial tickers, stock availability, and dynamic APIs. Automatically tracks DOM mutations, replaces previous stale data with the latest state, and emits live SSE streams.
+<div align="center">
+  <img src="docs/images/tab_live.png" alt="Live Real-Time Extraction Studio" width="100%"/>
+</div>
+
+<br/>
+
+### 7. AI Settings & Bring-Your-Own-Key (BYOK) Management
 Configure your AI providers (OpenAI, Google Gemini, Ollama, DeepSeek) directly from the Studio. Secure secret encryption, custom Base URLs, and model selection.
 <div align="center">
   <img src="docs/images/modal_ai_settings.png" alt="AI Provider Settings and BYOK" width="80%"/>
 </div>
+
+---
+
+## 🐍 Official Python SDK Interactive Documentation Portal (`/sdk`)
+
+In addition to the REST API reference, Nexora provides a dedicated, dark-themed interactive documentation portal for the **Python SDK** hosted at `/sdk` (and `/sdk-docs`), accompanied by a complete Markdown manual in `docs/PYTHON_SDK.md`:
+
+<div align="center">
+  <img src="docs/images/sdk_docs_hero.png" alt="Nexora Python SDK Documentation Portal" width="100%"/>
+</div>
+
+### Python SDK Portal Features:
+- **Exhaustive API Reference**: Covers client initialization, multi-engine crawling, anti-bot stealth, file ingestion, semantic chunking, hybrid search, and live watchers.
+- **One-Click Code Copy**: Copy snippets directly with automatic clipboard feedback.
+- **Interactive Search (`Ctrl + K`)**: Real-time fuzzy filtering of SDK methods and models.
+- **4 Complete Production Blueprints**: Ready-to-run scripts for Crypto Arbitrage, Enterprise RAG, Competitor Pricing, and Flash Sale Sniping.
 
 ---
 
@@ -117,11 +142,82 @@ Rather than relying on generic Swagger UI, Nexora includes a custom-designed, da
 </div>
 
 ### Key API Portal Highlights:
-- **Complete Endpoint Coverage**: All **76 platform endpoints** categorized across 12 distinct functional modules.
+- **Complete Endpoint Coverage**: All **95 platform endpoints** categorized across 12 distinct functional modules.
 - **Instant Search (`Ctrl + K`)**: Real-time fuzzy filtering across paths, summaries, HTTP methods, and parameter schemas.
 - **Method Filter Pills**: Instant one-click filtering by `ALL`, `GET`, `POST`, `PUT`, `DELETE`.
 - **4-Language Code Generator**: Copy-paste ready snippets in **cURL**, **Python (requests)**, **Python (Nexora SDK)**, and **JavaScript (fetch)**.
 - **In-Browser "Try It Live" Console**: Test endpoints interactively against your local server with configurable headers, payloads, live status badges, latency timers, and formatted JSON output.
+
+---
+
+---
+
+## ⚡ Live Real-Time Extraction & Change Tracking
+
+For dynamic websites where data changes rapidly—such as **e-commerce pricing**, **cryptocurrency/stock order books**, **inventory availability**, and **financial market tickers**—Nexora provides an autonomous, real-time watcher engine:
+
+<div align="center">
+  <img src="docs/images/tab_live.png" alt="Live Watcher Studio" width="100%"/>
+</div>
+
+### Key Capabilities:
+- **⚡ Autonomous Dynamic Field Detection ("Auto-Detect")**: Nexora can observe a target page (e.g. CoinMarketCap Bitcoin, Binance ticker, Amazon listing) for a few seconds, detect mutating values (prices, percentages, counters, stock availability), infer clean CSS selectors automatically, and track only those dynamic fields without developers needing to know CSS or JSON paths.
+- **Instant Mutation Detection**: Periodically extracts target CSS selectors or auto-discovered fields (down to 0.1s frequency) and computes cryptographic delta signatures.
+- **Clean State Replacement**: When a change is detected, **the previous stale data is purged and replaced with the latest live data** while preserving an immutable mutation audit log.
+- **Turn ON / Turn OFF Lifecycle**: Start, stop, pause, or resume watchers on-demand via the Web UI, Python SDK, or CLI.
+- **Single-Trigger Auto-Stop**: Configure watchers to monitor a page, wake up upon mutation, extract and overwrite the state, and immediately turn OFF.
+- **Real-Time SSE Streams & Webhooks**: Connect via Server-Sent Events (`EventSource`) or register an HTTP Webhook to receive instant change notifications.
+
+### Python SDK Quickstart for Live Data:
+
+```python
+from nexora import NexoraClient
+
+client = NexoraClient(base_url="http://localhost:8000")
+
+# Option A: Autonomous Auto-Detect (Zero CSS selectors needed!)
+# Tested on CoinMarketCap Bitcoin, financial tickers, and e-commerce feeds:
+for change in client.live.watch(
+    url="https://coinmarketcap.com/currencies/bitcoin/",
+    auto_detect=True,           # Automatically discovers: price, market_cap, volume_24h, % change
+    observation_seconds=3.0,
+    interval_seconds=2.0
+):
+    print(f"[{change.timestamp}] Live Mutation #{change.change_count}")
+    print("Mutated Metrics:", change.diff)
+    print("Latest Live State (Previous Replaced):", change.latest_data)
+
+# Option B: Manual CSS Selectors or JSON Keys:
+for change in client.live.watch(
+    url="https://crypto-exchange.com/api/v1/ticker/BTC-USD",
+    selectors={"price": ".live-price", "bid": ".bid-val"},
+    interval_seconds=1.0
+):
+    print("Live State:", change.latest_data)
+```
+
+### Developer CLI for Live Data:
+
+```bash
+# 1. Autonomously scan & discover dynamic fields on CoinMarketCap or any live URL:
+nexora live detect --url "https://coinmarketcap.com/currencies/bitcoin/" --observation 3.0
+
+# 2. Start an autonomous live watch with zero manual selectors:
+nexora live watch --url "https://coinmarketcap.com/currencies/bitcoin/" --auto --interval 2.0
+
+# 3. Start a live watch with custom manual CSS selectors:
+nexora live watch --url https://example.com/product -s price=".current-price" --interval 3.0
+
+# 4. List all registered live watchers and operational states:
+nexora live list
+
+# 5. Turn OFF or Turn ON a watcher by ID:
+nexora live off live_d9a8f2e1
+nexora live on live_d9a8f2e1
+
+# 6. Fetch only the latest live data snapshot:
+nexora live latest live_d9a8f2e1
+```
 
 ---
 
@@ -393,14 +489,15 @@ pytest -q
 ```
 
 ```
-================= 474 passed, 7 warnings in 69.81s (0:01:09) ==================
+================= 480 passed, 7 warnings in 69.81s (0:01:09) ==================
 ```
 
 <details>
-<summary><b>🔍 Click to expand the 28 Test Modules Breakdown</b></summary>
+<summary><b>🔍 Click to expand the 29 Test Modules Breakdown</b></summary>
 
 | Test Suite Module | Focus Area | Status |
 | :--- | :--- | :---: |
+| `test_live_extraction.py` | Real-time watchers, state replacement, Turn ON/OFF | ✅ PASS |
 | `test_phase1_antibot_core.py` | Anti-bot fingerprinting, anti-loader bypass | ✅ PASS |
 | `test_phase1_security_hardening.py` | SSRF prevention, private IP blocking, DNS rebinding | ✅ PASS |
 | `test_phase1_stabilization.py` | Concurrency limits, watchdog timeouts | ✅ PASS |

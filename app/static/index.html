@@ -89,6 +89,13 @@
 </span>
 <span class="tab-counter" id="files-badge-count">0</span>
 </button>
+<button aria-controls="tab-content-live" aria-selected="false" class="tab-button tab-button-live" data-tab="live" id="tab-btn-live" role="tab" title="Live Real-Time Extraction &amp; Change Tracking" type="button">
+<span class="tab-leading">
+<i class="fa-solid fa-satellite-dish tab-icon" style="color:#06b6d4;"></i>
+<span class="tab-label" data-i18n="nav_live">Live Extraction</span>
+</span>
+<span class="tab-counter" id="live-badge-count" style="background:rgba(6,182,212,0.2); color:#06b6d4;">LIVE</span>
+</button>
 </nav>
 </div>
 <!-- Sidebar Footer Controls -->
@@ -127,6 +134,10 @@
 <a class="btn btn-sm btn-secondary topbar-docs-btn" href="/docs" rel="noopener noreferrer" target="_blank" title="Nexora Developer API Portal & Interactive Reference">
 <i class="fa-solid fa-book"></i>
 <span data-i18n="topbar_api_docs">API Docs</span>
+</a>
+<a class="btn btn-sm btn-secondary topbar-sdk-btn" href="/sdk" rel="noopener noreferrer" target="_blank" title="Nexora Python SDK Complete Guide & Documentation" style="margin-left: 0.5rem; background: rgba(6, 182, 212, 0.12); border-color: rgba(6, 182, 212, 0.4); color: #38bdf8; font-weight: 600;">
+<i class="fa-brands fa-python" style="color: #38bdf8;"></i>
+<span>Python SDK</span>
 </a>
 </div>
 </header>
@@ -1586,6 +1597,265 @@
 </div>
 </div>
 </section>
+
+<!-- ============================================== -->
+<!-- 6. TAB CONTENT: LIVE EXTRACTION & CHANGE TRACKING -->
+<!-- ============================================== -->
+<section aria-labelledby="tab-btn-live" class="tab-content" id="tab-content-live" role="tabpanel">
+  <div class="live-workspace">
+    
+    <!-- Hero Header -->
+    <div class="live-hero-header">
+      <div>
+        <h2 class="live-hero-title">
+          <i class="fa-solid fa-satellite-dish" style="color: #06b6d4;"></i>
+          <span>Live Extraction &amp; Real-Time Change Tracking</span>
+        </h2>
+        <p class="live-hero-subtitle">
+          Monitor e-commerce pricing, financial market tickers, inventory changes, and dynamic web endpoints.
+          Tracks mutations in real-time, replaces previous stale data with fresh live state, and triggers instant alerts.
+        </p>
+      </div>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <span class="live-status-pulse live-status-active" id="live-global-indicator">
+          <i class="fa-solid fa-circle-dot"></i> Engine Active
+        </span>
+      </div>
+    </div>
+
+    <!-- Live Grid: Creator on Left, Live Feed on Right -->
+    <div class="live-grid">
+      
+      <!-- Left Column: Watcher Configuration & Controls -->
+      <div class="card card-eval">
+        <div class="card-header-compact">
+          <div class="card-title-group">
+            <div class="title-icon-box" style="background: rgba(6, 182, 212, 0.15); color: #06b6d4;">
+              <i class="fa-solid fa-sliders"></i>
+            </div>
+            <div>
+              <h3 style="margin:0; font-size:1rem; font-weight:700;">Create &amp; Turn ON Watcher</h3>
+              <p style="margin:0; font-size:0.75rem; color:#94a3b8;">Configure target URL, selectors, frequency and triggers</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-body" style="display:flex; flex-direction:column; gap:14px;">
+          <!-- Quick Target Presets -->
+          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <span style="font-size:0.7rem; color:#64748b; font-weight:600;">Quick Presets:</span>
+            <button type="button" class="btn btn-xs btn-secondary btn-live-preset" data-url="https://coinmarketcap.com/currencies/bitcoin/" data-name="CMC Bitcoin Live" style="font-size:0.68rem; padding:2px 8px;">
+              <i class="fa-brands fa-bitcoin" style="color:#f59e0b;"></i> CMC Bitcoin
+            </button>
+            <button type="button" class="btn btn-xs btn-secondary btn-live-preset" data-url="https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT" data-name="Binance BTC/USDT" style="font-size:0.68rem; padding:2px 8px;">
+              <i class="fa-solid fa-chart-line" style="color:#10b981;"></i> Binance API
+            </button>
+            <button type="button" class="btn btn-xs btn-secondary btn-live-preset" data-url="https://dummyjson.com/products/1" data-name="E-Commerce Phone" style="font-size:0.68rem; padding:2px 8px;">
+              <i class="fa-solid fa-cart-shopping" style="color:#38bdf8;"></i> Store Demo
+            </button>
+          </div>
+
+          <!-- Target URL -->
+          <div class="form-group">
+            <label class="form-label" style="font-weight:600; font-size:0.8rem; color:#f1f5f9;">Target URL to Monitor:</label>
+            <input type="url" id="live-input-url" class="form-input" placeholder="https://coinmarketcap.com/currencies/bitcoin/ or API endpoint" required style="width:100%;">
+          </div>
+
+          <!-- Watcher Label -->
+          <div class="form-group">
+            <label class="form-label" style="font-weight:600; font-size:0.8rem; color:#f1f5f9;">Watcher Name (Optional):</label>
+            <input type="text" id="live-input-name" class="form-input" placeholder="e.g. Bitcoin Real-Time Ticker" style="width:100%;">
+          </div>
+
+          <!-- Field Extraction Mode (Auto-Detect vs Manual) -->
+          <div class="form-group">
+            <label class="form-label" style="font-weight:600; font-size:0.8rem; color:#f1f5f9; display:flex; justify-content:space-between; align-items:center;">
+              <span>Detection &amp; Selector Strategy:</span>
+              <span class="badge" style="background:rgba(6,182,212,0.15); color:#06b6d4; font-size:0.7rem; padding:2px 8px; border-radius:12px;">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> AI Auto-Discovery
+              </span>
+            </label>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:4px;">
+              <label class="live-mode-card active" id="live-mode-label-auto" style="cursor:pointer; display:flex; align-items:center; gap:8px; padding:8px 12px; background:#0f172a; border:2px solid #06b6d4; border-radius:8px;">
+                <input type="radio" name="live-mode-choice" value="auto" checked style="accent-color:#06b6d4;">
+                <div>
+                  <div style="font-size:0.8rem; font-weight:700; color:#f8fafc;">⚡ Auto-Detect</div>
+                  <div style="font-size:0.68rem; color:#94a3b8;">Autonomous discovery</div>
+                </div>
+              </label>
+              <label class="live-mode-card" id="live-mode-label-manual" style="cursor:pointer; display:flex; align-items:center; gap:8px; padding:8px 12px; background:#0f172a; border:1px solid #1e293b; border-radius:8px;">
+                <input type="radio" name="live-mode-choice" value="manual" style="accent-color:#06b6d4;">
+                <div>
+                  <div style="font-size:0.8rem; font-weight:700; color:#f8fafc;">🛠️ Manual Selectors</div>
+                  <div style="font-size:0.68rem; color:#94a3b8;">Custom CSS / JSON</div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- Auto-Detect Dynamic Scanner Panel -->
+          <div id="live-auto-detect-panel" style="background:rgba(15,23,42,0.6); border:1px solid rgba(6,182,212,0.25); border-radius:8px; padding:12px; display:flex; flex-direction:column; gap:10px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div style="font-size:0.78rem; font-weight:600; color:#38bdf8; display:flex; align-items:center; gap:6px;">
+                <i class="fa-solid fa-radar fa-spin-pulse"></i>
+                <span>Autonomous Mutation Scanner</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <label for="live-input-observation" style="font-size:0.7rem; color:#94a3b8;">Window:</label>
+                <input type="number" id="live-input-observation" class="form-input form-input-sm" value="3.0" min="0.5" max="30" step="0.5" style="width:60px; padding:2px 6px; font-size:0.75rem;">
+                <span style="font-size:0.7rem; color:#64748b;">sec</span>
+              </div>
+            </div>
+            <p style="margin:0; font-size:0.72rem; color:#94a3b8; line-height:1.4;">
+              Nexora inspects the live DOM for fluctuating metrics (prices, percentages, counters, stock status) and infers stable CSS selectors automatically.
+            </p>
+            <button type="button" class="btn btn-sm btn-secondary" id="btn-run-auto-detect" style="justify-content:center; gap:8px; background:rgba(6,182,212,0.1); border-color:#06b6d4; color:#38bdf8; font-weight:600;">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> Scan &amp; Discover Dynamic Fields
+            </button>
+
+            <!-- Discovered Dynamic Fields Output -->
+            <div id="live-discovered-fields" style="display:none; flex-direction:column; gap:6px;">
+              <div style="font-size:0.72rem; font-weight:700; color:#10b981; display:flex; justify-content:space-between; align-items:center;">
+                <span id="live-discovered-title">Discovered Fields (0):</span>
+                <span style="font-size:0.68rem; color:#64748b;">Click chip to toggle</span>
+              </div>
+              <div id="live-discovered-chips" style="display:flex; flex-wrap:wrap; gap:6px;">
+                <!-- Field chips injected dynamically -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Manual Field Selectors Panel (Hidden in Auto Mode) -->
+          <div id="live-manual-selectors-panel" style="display:none; flex-direction:column; gap:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+              <label class="form-label" style="font-weight:600; font-size:0.8rem; color:#f1f5f9; margin:0;">Field Selectors (CSS / JSON):</label>
+              <button type="button" class="btn btn-xs btn-secondary" id="btn-add-live-selector" style="font-size:0.7rem; padding:2px 8px;">
+                <i class="fa-solid fa-plus"></i> Add Field
+              </button>
+            </div>
+            <div id="live-selectors-container" style="display:flex; flex-direction:column; gap:8px;">
+              <div class="live-selector-row" style="display:flex; gap:8px;">
+                <input type="text" class="form-input form-input-sm live-field-key" placeholder="Field (e.g. price)" value="price" style="width:35%;">
+                <input type="text" class="form-input form-input-sm live-field-css" placeholder="CSS Selector (e.g. .price)" value=".price, [data-test*='price']" style="flex:1;">
+              </div>
+              <div class="live-selector-row" style="display:flex; gap:8px;">
+                <input type="text" class="form-input form-input-sm live-field-key" placeholder="Field (e.g. stock)" value="stock" style="width:35%;">
+                <input type="text" class="form-input form-input-sm live-field-css" placeholder="CSS Selector (e.g. #stock)" value="#stock-status, .availability" style="flex:1;">
+              </div>
+            </div>
+            <span style="font-size:0.7rem; color:#64748b; margin-top:2px; display:block;">Leave empty to monitor changes across the entire page body text.</span>
+          </div>
+
+          <!-- Interval & Engine Row -->
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+            <div class="form-group">
+              <label class="form-label" style="font-weight:600; font-size:0.8rem; color:#f1f5f9;">Interval (seconds):</label>
+              <input type="number" id="live-input-interval" class="form-input form-input-sm" value="3.0" min="0.5" max="3600" step="0.5" style="width:100%;">
+            </div>
+            <div class="form-group">
+              <label class="form-label" style="font-weight:600; font-size:0.8rem; color:#f1f5f9;">Engine:</label>
+              <select id="live-input-engine" class="form-select form-select-sm" style="width:100%;">
+                <option value="auto">Auto Detect (Smart)</option>
+                <option value="fast_http">Fast HTTP</option>
+                <option value="playwright">Playwright Headless</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Single Trigger / Auto-Turn-Off Option -->
+          <div style="display:flex; align-items:flex-start; gap:8px; background:rgba(30,41,59,0.5); padding:10px; border-radius:6px; border:1px solid #1e293b;">
+            <input type="checkbox" id="live-input-single-trigger" style="margin-top:3px;">
+            <label for="live-input-single-trigger" style="font-size:0.775rem; color:#cbd5e1; cursor:pointer; line-height:1.4;">
+              <strong>Single-Trigger Mode (Auto Turn OFF):</strong><br>
+              Automatically turn OFF the watcher as soon as a change is detected, extracted, and replaced.
+            </label>
+          </div>
+
+          <!-- Master Action Buttons -->
+          <div style="display:flex; gap:10px; margin-top:6px;">
+            <button type="button" class="btn btn-primary" id="btn-create-live-watcher" style="flex:1; justify-content:center; background:#10b981; border-color:#059669; font-weight:700;">
+              <i class="fa-solid fa-play"></i>
+              <span>Turn ON Watcher</span>
+            </button>
+            <button type="button" class="btn btn-secondary" id="btn-test-extract-now" title="Test extraction once right now">
+              <i class="fa-solid fa-bolt"></i> Test
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Right Column: Active Watchers, Live State, and Diff Stream -->
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        
+        <!-- Active Watchers Card -->
+        <div class="card card-eval">
+          <div class="card-header-compact">
+            <div class="card-title-group">
+              <div class="title-icon-box" style="background:rgba(16,185,129,0.15); color:#10b981;">
+                <i class="fa-solid fa-tower-broadcast"></i>
+              </div>
+              <h3 style="margin:0; font-size:0.95rem; font-weight:700;">Active Watchers &amp; Lifecycle Controls</h3>
+            </div>
+            <button class="btn btn-xs btn-secondary" id="btn-refresh-live-watchers" title="Refresh list"><i class="fa-solid fa-rotate"></i></button>
+          </div>
+          <div class="card-body" style="padding:12px;">
+            <div id="live-watchers-list" style="display:flex; flex-direction:column; gap:10px; max-height:220px; overflow-y:auto;">
+              <div class="empty-state" style="padding:1rem;">
+                <i class="fa-solid fa-satellite-dish empty-icon" style="font-size:1.5rem;"></i>
+                <p style="font-size:0.8rem; margin:4px 0 0;">No active watchers. Create one on the left to start live monitoring.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Latest Live Snapshot (Previous Data Replaced) -->
+        <div class="card card-eval">
+          <div class="card-header-compact">
+            <div class="card-title-group">
+              <div class="title-icon-box" style="background:rgba(59,130,246,0.15); color:#3b82f6;">
+                <i class="fa-solid fa-bolt-lightning"></i>
+              </div>
+              <div>
+                <h3 style="margin:0; font-size:0.95rem; font-weight:700;">Current Live Data (Previous Data Replaced)</h3>
+                <p style="margin:0; font-size:0.75rem; color:#94a3b8;" id="live-data-subtitle">Select a watcher above to view live state</p>
+              </div>
+            </div>
+            <span class="live-card-replaced-badge" id="live-state-timestamp">Live Updated</span>
+          </div>
+          <div class="card-body" style="padding:12px;">
+            <pre id="live-data-preview" style="background:#080c14; border:1px solid #1e293b; border-radius:6px; padding:12px; font-family:'JetBrains Mono', monospace; font-size:0.8rem; color:#38bdf8; max-height:160px; overflow-y:auto; margin:0;">// Live state will appear here as soon as extracted...</pre>
+          </div>
+        </div>
+
+        <!-- Live Mutation & Diff Feed (SSE Stream) -->
+        <div class="card card-eval">
+          <div class="card-header-compact">
+            <div class="card-title-group">
+              <div class="title-icon-box" style="background:rgba(245,158,11,0.15); color:#f59e0b;">
+                <i class="fa-solid fa-timeline"></i>
+              </div>
+              <div>
+                <h3 style="margin:0; font-size:0.95rem; font-weight:700;">Real-Time Mutation &amp; Diff Stream</h3>
+                <p style="margin:0; font-size:0.75rem; color:#94a3b8;">Live log of detected changes, old vs new values, and triggers</p>
+              </div>
+            </div>
+            <button class="btn btn-xs btn-secondary" id="btn-clear-live-log" style="font-size:0.7rem;">Clear Log</button>
+          </div>
+          <div class="card-body" style="padding:12px;">
+            <div class="live-diff-box" id="live-stream-log">
+              <div style="color:#64748b; font-style:italic;">Awaiting live stream connection...</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+</section>
+
 </main>
 </div>
 </div>

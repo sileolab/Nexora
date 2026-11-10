@@ -17,8 +17,12 @@ from nexora.exceptions import (
 )
 from nexora.models import (
     ChunkInfo,
+    DiscoveredDynamicFieldInfo,
+    DynamicFieldDetectionResult,
     ExtractionResult,
     JobInfo,
+    LiveChangeEvent,
+    LiveWatcherInfo,
     QualityReport,
     SearchResult,
     SyncReport,
@@ -39,6 +43,10 @@ __all__ = [
     "SearchResult",
     "QualityReport",
     "SyncReport",
+    "LiveWatcherInfo",
+    "LiveChangeEvent",
+    "DiscoveredDynamicFieldInfo",
+    "DynamicFieldDetectionResult",
     "__version__",
     # Backward compatibility exports
     "CrawlbotClient",
